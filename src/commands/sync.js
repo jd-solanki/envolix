@@ -1,3 +1,6 @@
+import { InvalidSourceLineError } from '../env/parser.js'
+import { SyncFileError, syncEnvironmentFiles } from '../env/sync.js'
+
 export const DEFAULT_SOURCE_ENVIRONMENT_FILE = '.env'
 export const DEFAULT_SYNC_TARGET = '.env.example'
 
@@ -20,27 +23,42 @@ Examples:
   envolix sync .env .env.example
 `
 
-/**
- * Handles the current Sync command surface while the file rewrite behavior is
- * still owned by later MVP slices.
- */
 export async function runSync(args, { stdout, stderr }) {
   if (args.includes('-h') || args.includes('--help')) {
     stdout.write(syncHelpText)
     return 0
   }
 
+  if (args.length > 2) {
+    stderr.write(`Unexpected argument: ${args[2]}\n\n${syncHelpText}`)
+    return 1
+  }
+
   const source = args[0] ?? DEFAULT_SOURCE_ENVIRONMENT_FILE
   const target = args[1] ?? DEFAULT_SYNC_TARGET
 
-  stderr.write(
-    [
-      'Sync is not implemented yet.',
-      `No Sync Target was written for Source Environment File "${source}" and Sync Target "${target}".`,
-      'Run `envolix sync --help` to see the intended file-to-file Sync workflow.',
-      '',
-    ].join('\n'),
-  )
+  try {
+    const result = await syncEnvironmentFiles({ source, target })
 
-  return 1
+    stdout.write(
+      [
+        `Synced Source Environment File "${source}" to Sync Target "${target}".`,
+        `Rendered ${formatBlankAssignmentCount(result.blankAssignmentCount)}.`,
+        '',
+      ].join('\n'),
+    )
+
+    return 0
+  } catch (error) {
+    if (error instanceof InvalidSourceLineError || error instanceof SyncFileError) {
+      stderr.write(`${error.message}\n`)
+      return 1
+    }
+
+    throw error
+  }
+}
+
+function formatBlankAssignmentCount(count) {
+  return `${count} Blank Assignment${count === 1 ? '' : 's'}`
 }

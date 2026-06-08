@@ -1,0 +1,6 @@
+BASIC= # inline docs
+QUOTED_HASH= # quoted hash docs
+SINGLE=
+MULTILINE= # multiline docs
+SPACED=
+EMPTY=

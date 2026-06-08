@@ -1,0 +1,9 @@
+# App settings
+APP_NAME= # public display name
+
+# Database connection
+DATABASE_URL= # required by app
+
+# Standalone section
+
+FEATURE_FLAG= # enables feature
