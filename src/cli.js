@@ -28,6 +28,11 @@ export async function runCli(args, { stdout, stderr }) {
     return 0
   }
 
+  if (isOption(command)) {
+    stderr.write(`Unsupported option: ${command}\n\n${topLevelHelpText}`)
+    return 1
+  }
+
   if (command === 'sync') {
     return runSync(rest, { stdout, stderr })
   }
@@ -37,3 +42,7 @@ export async function runCli(args, { stdout, stderr }) {
 }
 
 export { syncHelpText }
+
+function isOption(arg) {
+  return arg.startsWith('-') && arg !== '-'
+}

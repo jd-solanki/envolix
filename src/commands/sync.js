@@ -29,6 +29,12 @@ export async function runSync(args, { stdout, stderr }) {
     return 0
   }
 
+  const unsupportedOption = args.find(isOption)
+  if (unsupportedOption !== undefined) {
+    stderr.write(`Unsupported option: ${unsupportedOption}\n\n${syncHelpText}`)
+    return 1
+  }
+
   if (args.length > 2) {
     stderr.write(`Unexpected argument: ${args[2]}\n\n${syncHelpText}`)
     return 1
@@ -61,4 +67,8 @@ export async function runSync(args, { stdout, stderr }) {
 
 function formatBlankAssignmentCount(count) {
   return `${count} Blank Assignment${count === 1 ? '' : 's'}`
+}
+
+function isOption(arg) {
+  return arg.startsWith('-') && arg !== '-'
 }

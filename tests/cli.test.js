@@ -60,6 +60,20 @@ function runEnvolix(args, { cwd = repoRoot } = {}) {
   })
 }
 
+function assertDoesNotAdvertiseDeferredSyncCapabilities(output) {
+  assert.doesNotMatch(output, /--config/)
+  assert.doesNotMatch(output, /--check/)
+  assert.doesNotMatch(output, /--dry-run/)
+  assert.doesNotMatch(output, /--source/)
+  assert.doesNotMatch(output, /--target/)
+  assert.doesNotMatch(output, /--stage/)
+  assert.doesNotMatch(output, /configuration files/i)
+  assert.doesNotMatch(output, /check mode/i)
+  assert.doesNotMatch(output, /multiple Source Environment Files/i)
+  assert.doesNotMatch(output, /multiple Sync Targets/i)
+  assert.doesNotMatch(output, /automatic git staging/i)
+}
+
 describe('envolix CLI', () => {
   it('prints top-level help successfully', async () => {
     const result = await runEnvolix(['--help'])
@@ -68,6 +82,7 @@ describe('envolix CLI', () => {
     assert.match(result.stdout, /Usage:\n  envolix \[command\] \[options\]/)
     assert.match(result.stdout, /sync \[source\] \[target\]/)
     assert.match(result.stdout, /Source Environment File/)
+    assertDoesNotAdvertiseDeferredSyncCapabilities(result.stdout)
     assert.equal(result.stderr, '')
   })
 
@@ -79,7 +94,53 @@ describe('envolix CLI', () => {
     assert.match(result.stdout, /Source Environment File \(default: \.env\)/)
     assert.match(result.stdout, /Sync Target \/ Example Environment File \(default: \.env\.example\)/)
     assert.match(result.stdout, /Blank Assignments/)
+    assertDoesNotAdvertiseDeferredSyncCapabilities(result.stdout)
     assert.equal(result.stderr, '')
+  })
+
+  it('rejects unsupported top-level options clearly', async () => {
+    const result = await runEnvolix(['--config'])
+
+    assert.equal(result.code, 1)
+    assert.equal(result.stdout, '')
+    assert.match(result.stderr, /Unsupported option: --config/)
+    assert.match(result.stderr, /Usage:\n  envolix \[command\] \[options\]/)
+  })
+
+  it('rejects unsupported Sync options clearly without syncing', async () => {
+    const projectDir = await makeTmpProject()
+    await writeProjectFile(projectDir, '.env', 'SECRET=source-value\n')
+
+    const result = await runEnvolix(['sync', '--check'], { cwd: projectDir })
+
+    assert.equal(result.code, 1)
+    assert.equal(result.stdout, '')
+    assert.match(result.stderr, /Unsupported option: --check/)
+    assert.match(result.stderr, /Usage:\n  envolix sync \[source\] \[target\] \[options\]/)
+    await assert.rejects(readProjectFile(projectDir, '.env.example'), { code: 'ENOENT' })
+  })
+
+  it('rejects unsupported Sync options after positional paths clearly', async () => {
+    const projectDir = await makeTmpProject()
+    await writeProjectFile(projectDir, '.env', 'SECRET=source-value\n')
+
+    const result = await runEnvolix(['sync', '.env', '.env.example', '--dry-run'], {
+      cwd: projectDir,
+    })
+
+    assert.equal(result.code, 1)
+    assert.equal(result.stdout, '')
+    assert.match(result.stderr, /Unsupported option: --dry-run/)
+    await assert.rejects(readProjectFile(projectDir, '.env.example'), { code: 'ENOENT' })
+  })
+
+  it('rejects extra Sync arguments clearly', async () => {
+    const result = await runEnvolix(['sync', '.env', '.env.example', 'another.env'])
+
+    assert.equal(result.code, 1)
+    assert.equal(result.stdout, '')
+    assert.match(result.stderr, /Unexpected argument: another\.env/)
+    assert.match(result.stderr, /Usage:\n  envolix sync \[source\] \[target\] \[options\]/)
   })
 
   it('syncs .env to .env.example by default without exposing source values', async () => {
@@ -118,16 +179,21 @@ describe('envolix CLI', () => {
     assert.doesNotMatch(result.stdout, /postgres:\/\/user:secret/)
   })
 
-  it('fully rewrites the Sync Target and removes stale target-only content', async () => {
+  it('keeps Sync one-way by fully rewriting target-only content', async () => {
     const projectDir = await makeTmpProject()
-    await writeProjectFile(projectDir, '.env', 'CURRENT=value\n')
-    await writeProjectFile(projectDir, '.env.example', 'OLD=\nCURRENT=stale\n')
+    await writeProjectFile(projectDir, '.env', 'CURRENT=source-secret\n')
+    await writeProjectFile(
+      projectDir,
+      '.env.example',
+      'OLD_TARGET_ONLY=\nCURRENT=target-value\n# target-only documentation\n',
+    )
 
     const result = await runEnvolix(['sync'], { cwd: projectDir })
 
     assert.equal(result.code, 0)
     assert.equal(result.stderr, '')
     assert.equal(await readProjectFile(projectDir, '.env.example'), 'CURRENT=\n')
+    assert.doesNotMatch(result.stdout, /source-secret|target-value/)
   })
 
   it('does not write the Sync Target when the Source Environment File contains Invalid Source Lines', async () => {
