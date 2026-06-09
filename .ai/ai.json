@@ -1,7 +1,7 @@
 {
   "packages": {
     "jd-solanki/.ai": {
-      "version": "v1.0.5",
+      "version": "v1.0.7",
       "linked": [
         "skills/grill-me",
         "skills/grill-with-docs",

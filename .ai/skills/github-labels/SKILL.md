@@ -9,7 +9,8 @@ Use this skill to choose issue and PR labels before publishing or updating GitHu
 
 ## Quick Start
 
-- PRD issue: apply `PRD` and `ready-for-agent`
+- New PRD issue: apply `PRD` only
+- Parent PRD after all sub-issues are created: apply `ready-for-agent`
 - Sub-issue from a PRD: apply `PRD-sub-issue` and either `ready-for-agent` or `ready-for-human`
 - Unclear issue: apply `needs-triage`, or `needs-info` when a specific answer is required
 - PR ready for maintainer review: apply the same readiness label as the work item when supported by the repo
@@ -30,9 +31,11 @@ Use this skill to choose issue and PR labels before publishing or updating GitHu
 
 1. Identify the artifact type: PRD, PRD sub-issue, standalone issue, or PR.
 2. Decide whether the work is specified enough to start.
-3. Apply one state label: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, or `wontfix`.
-4. Add `PRD` or `PRD-sub-issue` only when the artifact actually matches that type.
-5. For PRs, mirror the readiness or triage state of the linked issue when the repository supports those labels on PRs.
+3. For a newly created PRD, apply `PRD` only. Do not apply a state label until its implementation issues have been created.
+4. For a parent PRD whose full set of sub-issues has just been created, add `ready-for-agent`.
+5. For non-PRD issues and PRD sub-issues, apply one state label: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, or `wontfix`.
+6. Add `PRD` or `PRD-sub-issue` only when the artifact actually matches that type.
+7. For PRs, mirror the readiness or triage state of the linked issue when the repository supports those labels on PRs.
 
 ## Missing Labels
 
@@ -47,6 +50,7 @@ Use the meanings in the triage label table as label descriptions.
 ## Guidance
 
 - Use `ready-for-agent` for AFK-friendly work with clear scope, acceptance criteria, and no unresolved human decision.
+- For parent PRDs, use `ready-for-agent` only after every approved sub-issue has been created.
 - Use `ready-for-human` when implementation requires human judgment, design review, stakeholder input, or sensitive access.
 - Use `needs-info` when a specific missing answer blocks useful progress.
 - Use `needs-triage` when the issue exists but has not yet been evaluated.

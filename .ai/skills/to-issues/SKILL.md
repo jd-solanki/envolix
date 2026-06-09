@@ -53,9 +53,11 @@ Iterate until the user approves the breakdown.
 
 ### 5. Publish the issues to the issue tracker
 
-For each approved slice, publish a new issue to the issue tracker. Use the issue body template below. These issues are considered ready for AFK agents, so publish them with the correct triage label unless instructed otherwise.
+For each approved slice, publish a new issue to the issue tracker. Use the issue body template below. Publish AFK slices with `PRD-sub-issue` and `ready-for-agent`; publish HITL slices with `PRD-sub-issue` and `ready-for-human` unless instructed otherwise.
 
 Publish issues in dependency order (blockers first) so you can reference real issue identifiers in the "Blocked by" field.
+
+After all issues for an existing parent PRD have been created, apply `ready-for-agent` to the parent PRD issue. This marks that the PRD has been broken down and is ready for agents to pick up its child work. Do not apply `ready-for-agent` to the parent before every approved slice has a published issue.
 
 <issue-template>
 ## Parent
@@ -82,4 +84,4 @@ Or "None - can start immediately" if no blockers.
 
 </issue-template>
 
-Do NOT close or modify any parent issue.
+Do NOT close or otherwise modify any parent issue. The only allowed parent update in this workflow is adding `ready-for-agent` after all child issues have been created.
