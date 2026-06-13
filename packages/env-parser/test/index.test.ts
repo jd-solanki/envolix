@@ -226,6 +226,51 @@ describe('@envolix/env-parser', () => {
     ]);
   });
 
+  it('rejects trailing tokens after quoted values while preserving valid inline comments', () => {
+    const document = parseEnvDocument(
+      ['DOUBLE="value" junk', "SINGLE='value' junk", 'VALID="value" # guidance'].join('\n'),
+    );
+
+    expect(document.nodes).toEqual([
+      expect.objectContaining({
+        type: 'unknown',
+        raw: 'DOUBLE="value" junk',
+        lineRange: { start: 1, end: 1 },
+        diagnostic: expect.objectContaining({
+          phase: 'parse',
+          code: 'UnknownLine',
+          lineRange: { start: 1, end: 1 },
+        }),
+      }),
+      expect.objectContaining({
+        type: 'unknown',
+        raw: "SINGLE='value' junk",
+        lineRange: { start: 2, end: 2 },
+        diagnostic: expect.objectContaining({
+          phase: 'parse',
+          code: 'UnknownLine',
+          lineRange: { start: 2, end: 2 },
+        }),
+      }),
+      expect.objectContaining({
+        type: 'entry',
+        raw: 'VALID="value" # guidance',
+        key: 'VALID',
+        value: 'value',
+        rawValue: '"value"',
+        quoteStyle: 'double',
+        inlineComment: {
+          raw: '# guidance',
+          segments: [{ raw: '# guidance', text: 'guidance' }],
+        },
+      }),
+    ]);
+    expect(document.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      'UnknownLine',
+      'UnknownLine',
+    ]);
+  });
+
   it('treats only export followed by whitespace as an export prefix', () => {
     const document = parseEnvDocument(
       ['export FOO=bar', 'export\tTOKEN=value', 'exportFOO=baz', 'export FOO'].join('\n'),

@@ -398,9 +398,16 @@ function parseQuotedEntry(
     if (closingOffset !== -1) {
       rawValueParts.push(line.text.slice(currentOffset, closingOffset));
       const afterQuote = line.text.slice(closingOffset + 1);
-      const commentStart = afterQuote.search(/\s#/);
-      const commentRaw = commentStart === -1 ? undefined : afterQuote.slice(commentStart).trim();
       const raw = joinRawLines(lines, startIndex, currentLineIndex);
+      const parsedSuffix = parseQuotedValueSuffix(afterQuote);
+
+      if (parsedSuffix === undefined) {
+        return {
+          entry: undefined,
+          diagnostic: createUnknownLineDiagnostic(raw, startIndex + 1),
+          consumedLines: currentLineIndex - startIndex + 1,
+        };
+      }
 
       return {
         consumedLines: currentLineIndex - startIndex + 1,
@@ -414,8 +421,7 @@ function parseQuotedEntry(
           rawValue: `${context.quote}${rawValueParts.join('')}${context.quote}`,
           quoteStyle: context.quote === "'" ? 'single' : 'double',
           exportPrefix: context.exportPrefix,
-          inlineComment:
-            commentRaw?.startsWith('#') === true ? parseComment(commentRaw) : undefined,
+          inlineComment: parsedSuffix.inlineComment,
         }),
       };
     }
@@ -439,6 +445,21 @@ function parseQuotedEntry(
     }),
     consumedLines: lines.length - startIndex,
   };
+}
+
+function parseQuotedValueSuffix(
+  afterQuote: string,
+): { readonly inlineComment: EnvComment | undefined } | undefined {
+  if (/^[ \t]*$/.test(afterQuote)) {
+    return { inlineComment: undefined };
+  }
+
+  const commentMatch = /^[ \t]+(#.*)$/.exec(afterQuote);
+  if (commentMatch !== null) {
+    return { inlineComment: parseComment(commentMatch[1] ?? '#') };
+  }
+
+  return undefined;
 }
 
 function diagnoseInvalidEntryHead(line: string, lineNumber: number): EnvDiagnostic | undefined {
