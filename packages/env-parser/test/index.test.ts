@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vite-plus/test';
 
-import { packageName, parseEnvDocument } from '../src/index.js';
+import {
+  EnvValidationError,
+  assertEnvDocumentValidForGeneration,
+  packageName,
+  parseEnvDocument,
+  renderExampleEnvDocument,
+  validateEnvDocumentForGeneration,
+} from '../src/index.js';
 
 describe('@envolix/env-parser', () => {
   it('exposes the package boundary', () => {
@@ -28,6 +35,7 @@ describe('@envolix/env-parser', () => {
     ]);
     expect(document.lineEnding).toBe('lf');
     expect(document.finalNewline).toBe(false);
+    expect(document.diagnostics).toEqual([]);
 
     const comment = document.nodes[0];
     expect(comment).toMatchObject({
@@ -166,11 +174,23 @@ describe('@envolix/env-parser', () => {
     const document = parseEnvDocument('SECRET=`not supported`');
 
     expect(document.nodes).toEqual([
-      {
+      expect.objectContaining({
         type: 'unknown',
         raw: 'SECRET=`not supported`',
         lineRange: { start: 1, end: 1 },
-      },
+        diagnostic: expect.objectContaining({
+          phase: 'parse',
+          code: 'UnsupportedQuote',
+          lineRange: { start: 1, end: 1 },
+        }),
+      }),
+    ]);
+    expect(document.diagnostics).toEqual([
+      expect.objectContaining({
+        phase: 'parse',
+        code: 'UnsupportedQuote',
+        lineRange: { start: 1, end: 1 },
+      }),
     ]);
     expect(document.findEntry('SECRET')).toBeUndefined();
   });
@@ -186,11 +206,15 @@ describe('@envolix/env-parser', () => {
         raw: 'GOOD=value',
         lineRange: { start: 1, end: 1 },
       }),
-      {
+      expect.objectContaining({
         type: 'unknown',
         raw: 'not valid syntax',
         lineRange: { start: 2, end: 2 },
-      },
+        diagnostic: expect.objectContaining({
+          phase: 'parse',
+          code: 'UnknownLine',
+        }),
+      }),
       {
         type: 'blank',
         raw: '\t  ',
@@ -202,6 +226,39 @@ describe('@envolix/env-parser', () => {
         lineRange: { start: 4, end: 4 },
       }),
     ]);
+  });
+
+  it('attaches stable parse diagnostics for invalid keys, invalid exports, and unterminated quotes', () => {
+    const document = parseEnvDocument(
+      ['BAD-KEY=value', 'export FOO', 'CERT="-----BEGIN-----', 'body'].join('\n'),
+    );
+
+    expect(document.nodes).toEqual([
+      expect.objectContaining({
+        type: 'unknown',
+        raw: 'BAD-KEY=value',
+        lineRange: { start: 1, end: 1 },
+        diagnostic: expect.objectContaining({ code: 'InvalidKey' }),
+      }),
+      expect.objectContaining({
+        type: 'unknown',
+        raw: 'export FOO',
+        lineRange: { start: 2, end: 2 },
+        diagnostic: expect.objectContaining({ code: 'InvalidExport' }),
+      }),
+      expect.objectContaining({
+        type: 'unknown',
+        raw: 'CERT="-----BEGIN-----\nbody',
+        lineRange: { start: 3, end: 4 },
+        diagnostic: expect.objectContaining({ code: 'UnterminatedQuote' }),
+      }),
+    ]);
+    expect(document.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      'InvalidKey',
+      'InvalidExport',
+      'UnterminatedQuote',
+    ]);
+    expect(document.diagnostics.every((diagnostic) => !('columnRange' in diagnostic))).toBe(true);
   });
 
   it('keeps hash characters inside values unless they begin an inline comment', () => {
@@ -226,5 +283,65 @@ describe('@envolix/env-parser', () => {
     expect(document.nodes).toEqual([]);
     expect(document.lineEnding).toBe('none');
     expect(document.finalNewline).toBe(false);
+  });
+
+  it('returns all generation blockers at once and throws a typed validation error', () => {
+    const document = parseEnvDocument(['A=one\r', 'BAD-KEY=value', 'A=two'].join('\n'));
+    const diagnostics = validateEnvDocumentForGeneration(document);
+
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      'InvalidKey',
+      'MixedLineEndings',
+      'DuplicateKey',
+    ]);
+    expect(diagnostics.map((diagnostic) => diagnostic.phase)).toEqual([
+      'parse',
+      'generation',
+      'generation',
+    ]);
+
+    expect(() => assertEnvDocumentValidForGeneration(document)).toThrow(EnvValidationError);
+
+    try {
+      assertEnvDocumentValidForGeneration(document);
+    } catch (error) {
+      expect(error).toBeInstanceOf(EnvValidationError);
+      expect((error as EnvValidationError).diagnostics).toEqual(diagnostics);
+    }
+  });
+
+  it('renders example env content only after validation passes', () => {
+    const document = parseEnvDocument(
+      [
+        '  # database #varType:secret',
+        'DATABASE_URL = postgres://local # connection #owner:platform',
+        '   ',
+        'export API_KEY="secret value"',
+        "PRIVATE_KEY='line one",
+        "line two'",
+      ].join('\n'),
+    );
+
+    expect(renderExampleEnvDocument(document)).toBe(
+      [
+        '  # database #varType:secret',
+        'DATABASE_URL= # connection #owner:platform',
+        '',
+        'export API_KEY=',
+        'PRIVATE_KEY=',
+      ].join('\n'),
+    );
+  });
+
+  it('preserves CRLF line endings and final newline presence while rendering', () => {
+    const document = parseEnvDocument('A=one\r\nB=two # guide\r\n');
+
+    expect(renderExampleEnvDocument(document)).toBe('A=\r\nB= # guide\r\n');
+  });
+
+  it('rejects invalid documents during rendering instead of exposing an unsafe renderer', () => {
+    const document = parseEnvDocument(['A=one', 'A=two'].join('\n'));
+
+    expect(() => renderExampleEnvDocument(document)).toThrow(EnvValidationError);
   });
 });
