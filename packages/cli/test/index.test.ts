@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -74,6 +75,46 @@ describe('@envolix/cli', () => {
     expect(stdout).toContain('gen');
     expect(stdout).toContain('Generate an example env file');
     expect(dirname(packageBinPath ?? '')).toBe('./dist');
+  });
+
+  it('packages ESM output and declarations for both public packages', async () => {
+    const cliPackageJson = JSON.parse(
+      await readFile(resolve(packageRoot, 'package.json'), 'utf8'),
+    ) as {
+      bin?: { envolix?: string };
+      exports?: Record<string, unknown>;
+      type?: string;
+    };
+    const parserPackageRoot = resolve(workspaceRoot, 'packages/env-parser');
+    const parserPackageJson = JSON.parse(
+      await readFile(resolve(parserPackageRoot, 'package.json'), 'utf8'),
+    ) as {
+      exports?: { '.'?: { types?: string; default?: string } };
+      type?: string;
+    };
+
+    expect(cliPackageJson.type).toBe('module');
+    expect(cliPackageJson.bin?.envolix).toBe('./dist/index.mjs');
+    expect(cliPackageJson.exports).toEqual({});
+    await expect(readFile(resolve(packageRoot, 'dist/index.mjs'), 'utf8')).resolves.toContain(
+      '#!/usr/bin/env node',
+    );
+    await expect(readFile(resolve(packageRoot, 'dist/index.d.mts'), 'utf8')).resolves.toBeDefined();
+
+    expect(parserPackageJson.type).toBe('module');
+    expect(parserPackageJson.exports?.['.']).toEqual({
+      types: './dist/index.d.mts',
+      default: './dist/index.mjs',
+    });
+    await expect(
+      readFile(resolve(parserPackageRoot, 'dist/index.d.mts'), 'utf8'),
+    ).resolves.toContain('parseEnvDocument');
+
+    const parserModule = (await import(
+      pathToFileURL(resolve(parserPackageRoot, 'dist/index.mjs')).href
+    )) as { parseEnvDocument?: unknown; renderExampleEnvDocument?: unknown };
+    expect(typeof parserModule.parseEnvDocument).toBe('function');
+    expect(typeof parserModule.renderExampleEnvDocument).toBe('function');
   });
 
   it('documents gen options and defaults in command help', async () => {
