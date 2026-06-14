@@ -12,6 +12,10 @@ _Avoid_: Input env, original env
 The example env file produced from a source env file. It is safe to share because generated values are blank.
 _Avoid_: Output env, destination env
 
+**Target generation**:
+The CLI-owned workflow that consumes an env document, verifies whether a target env file can be produced, and renders generated target syntax.
+_Avoid_: Parser rendering, example rendering
+
 **Generated value**:
 The blank value written for a key in the target env file, replacing the private source value. Target generation removes only env values while preserving comments and document structure.
 _Avoid_: Placeholder, masked value
@@ -61,7 +65,7 @@ An env document that uses more than one newline convention. The parser can repre
 _Avoid_: Inconsistent newlines, platform mismatch
 
 **Diagnostic code**:
-A stable PascalCase identifier that classifies parser and generation validation diagnostics for programmatic handling.
+A stable PascalCase identifier that classifies parser and target generation diagnostics for programmatic handling.
 _Avoid_: Error string, reason string
 
 **Comment segment**:

@@ -112,9 +112,9 @@ describe('@envolix/cli', () => {
 
     const parserModule = (await import(
       pathToFileURL(resolve(parserPackageRoot, 'dist/index.mjs')).href
-    )) as { parseEnvDocument?: unknown; renderExampleEnvDocument?: unknown };
+    )) as Record<string, unknown>;
     expect(typeof parserModule.parseEnvDocument).toBe('function');
-    expect(typeof parserModule.renderExampleEnvDocument).toBe('function');
+    expect(parserModule.renderExampleEnvDocument).toBeUndefined();
   });
 
   it('documents gen options and defaults in command help', async () => {

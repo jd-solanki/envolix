@@ -4,8 +4,8 @@ Envolix derives shareable example env files from private source env files. It re
 
 ## Packages
 
-- `@envolix/env-parser`: parser, validation, lookup, and safe example-env rendering APIs.
-- `@envolix/cli`: binary-only package that publishes the `envolix` command.
+- `@envolix/env-parser`: AST-first parser and env-document lookup APIs.
+- `@envolix/cli`: binary-only package that publishes the `envolix` command and owns target generation, including generation validation and generated target syntax rendering.
 
 Both packages are ESM-only and emit TypeScript declarations when packed.
 
@@ -81,33 +81,7 @@ console.log(document.findEntries('DATABASE_URL').length);
 console.log(document.diagnostics);
 ```
 
-Validate and render a safe example env document:
-
-```ts
-import {
-  EnvValidationError,
-  parseEnvDocument,
-  renderExampleEnvDocument,
-  validateEnvDocumentForGeneration,
-} from '@envolix/env-parser';
-
-const document = parseEnvDocument('TOKEN=secret # required\n');
-const diagnostics = validateEnvDocumentForGeneration(document);
-
-if (diagnostics.length === 0) {
-  console.log(renderExampleEnvDocument(document));
-}
-
-try {
-  renderExampleEnvDocument(parseEnvDocument('DUP=one\nDUP=two\n'));
-} catch (error) {
-  if (error instanceof EnvValidationError) {
-    console.error(error.diagnostics);
-  }
-}
-```
-
-The parser preserves duplicate entries and unknown lines in the AST. Generation validation rejects blockers such as duplicate keys, unknown syntax, unsupported backtick values, invalid keys, malformed export usage, unterminated quotes, and mixed line endings.
+The parser preserves duplicate entries and unknown lines in the AST. Target generation, including generation validation, is owned by `@envolix/cli`, which rejects blockers such as duplicate keys, unknown syntax, unsupported backtick values, invalid keys, malformed export usage, unterminated quotes, and mixed line endings before writing a target env file.
 
 ## Development
 
@@ -175,4 +149,4 @@ packages/
     test/
 ```
 
-The parser and CLI are intentionally separate. The CLI stays thin over `@envolix/env-parser`, keeping reusable parsing, validation, diagnostics, and rendering behavior in the library package.
+The parser and CLI are intentionally separate. The parser package owns Source env file parsing and Env document data. The CLI package owns Target generation: generation validation, generated target syntax rendering, filesystem safety, diagnostics presentation, and exit behavior.

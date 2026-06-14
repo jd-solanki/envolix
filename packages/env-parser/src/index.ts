@@ -2,13 +2,11 @@ export const packageName = '@envolix/env-parser';
 
 export type EnvLineEnding = 'lf' | 'crlf' | 'mixed' | 'none';
 export type EnvQuoteStyle = 'none' | 'single' | 'double';
-export type EnvDiagnosticPhase = 'parse' | 'generation';
+export type EnvDiagnosticPhase = 'parse';
 export type EnvDiagnosticCode =
   | 'InvalidKey'
   | 'UnsupportedQuote'
   | 'UnterminatedQuote'
-  | 'DuplicateKey'
-  | 'MixedLineEndings'
   | 'InvalidExport'
   | 'UnknownLine';
 
@@ -77,16 +75,6 @@ export interface EnvDocument {
   readonly finalNewline: boolean;
   findEntry(key: string): EnvEntry | undefined;
   findEntries(key: string): readonly EnvEntry[];
-}
-
-export class EnvValidationError extends Error {
-  readonly diagnostics: readonly EnvDiagnostic[];
-
-  constructor(diagnostics: readonly EnvDiagnostic[]) {
-    super(formatValidationErrorMessage(diagnostics));
-    this.name = 'EnvValidationError';
-    this.diagnostics = Object.freeze([...diagnostics]);
-  }
 }
 
 interface PhysicalLine {
@@ -184,61 +172,6 @@ export function parseEnvDocument(source: string): EnvDocument {
 }
 
 export const parseEnv = parseEnvDocument;
-
-export function validateEnvDocumentForGeneration(document: EnvDocument): readonly EnvDiagnostic[] {
-  const diagnostics: EnvDiagnostic[] = [...document.diagnostics];
-
-  if (document.lineEnding === 'mixed') {
-    diagnostics.push(
-      createDiagnostic({
-        phase: 'generation',
-        code: 'MixedLineEndings',
-        message: 'Source env document uses mixed line endings.',
-        lineRange: lineRangeForDocument(document),
-      }),
-    );
-  }
-
-  for (const [key, entries] of Object.entries(document.keyIndex)) {
-    if (entries.length <= 1) {
-      continue;
-    }
-
-    diagnostics.push(
-      createDiagnostic({
-        phase: 'generation',
-        code: 'DuplicateKey',
-        message: `Source env document contains duplicate key "${key}".`,
-        lineRange: {
-          start: entries[0]?.lineRange.start ?? 1,
-          end: entries.at(-1)?.lineRange.end ?? entries[0]?.lineRange.end ?? 1,
-        },
-      }),
-    );
-  }
-
-  return Object.freeze(diagnostics);
-}
-
-export function assertEnvDocumentValidForGeneration(document: EnvDocument): void {
-  const diagnostics = validateEnvDocumentForGeneration(document);
-  if (diagnostics.length > 0) {
-    throw new EnvValidationError(diagnostics);
-  }
-}
-
-export function renderExampleEnvDocument(document: EnvDocument): string {
-  assertEnvDocumentValidForGeneration(document);
-
-  if (document.nodes.length === 0) {
-    return '';
-  }
-
-  const lineEnding = document.lineEnding === 'crlf' ? '\r\n' : '\n';
-  const rendered = document.nodes.map((node) => renderNode(node)).join(lineEnding);
-
-  return document.finalNewline ? `${rendered}${lineEnding}` : rendered;
-}
 
 function splitPhysicalLines(source: string): PhysicalLine[] {
   if (source === '') {
@@ -546,45 +479,6 @@ function createUnknownLineDiagnostic(line: string, lineNumber: number): EnvDiagn
 function createDiagnostic(input: EnvDiagnostic): EnvDiagnostic {
   Object.freeze(input.lineRange);
   return Object.freeze(input);
-}
-
-function lineRangeForDocument(document: EnvDocument): EnvLineRange {
-  const firstNode = document.nodes[0];
-  const lastNode = document.nodes.at(-1);
-
-  return {
-    start: firstNode?.lineRange.start ?? 1,
-    end: lastNode?.lineRange.end ?? 1,
-  };
-}
-
-function renderNode(node: EnvNode): string {
-  switch (node.type) {
-    case 'blank':
-      return '';
-    case 'comment':
-      return node.raw;
-    case 'entry':
-      return `${node.exportPrefix ?? ''}${node.key}=${renderInlineComment(node)}`;
-    case 'unknown':
-      throw new EnvValidationError([node.diagnostic]);
-  }
-}
-
-function renderInlineComment(entry: EnvEntry): string {
-  return entry.inlineComment === undefined ? '' : ` ${entry.inlineComment.raw}`;
-}
-
-function formatValidationErrorMessage(diagnostics: readonly EnvDiagnostic[]): string {
-  if (diagnostics.length === 0) {
-    return 'Env document is valid for generation.';
-  }
-
-  if (diagnostics.length === 1) {
-    return `Env document is not valid for generation: ${diagnostics[0]?.code}.`;
-  }
-
-  return `Env document is not valid for generation: ${diagnostics.length} diagnostics.`;
 }
 
 function createKeyIndex(nodes: readonly EnvNode[]): Readonly<Record<string, readonly EnvEntry[]>> {
