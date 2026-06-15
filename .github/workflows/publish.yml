@@ -126,22 +126,21 @@ jobs:
       - name: Run tests
         run: vp test
 
-      - name: Generate changelog and publish
+      - name: Publish package
         shell: bash
         run: |
           set -euo pipefail
 
-          npx changelogen@latest \
-            --dir "${PACKAGE_DIR}" \
-            --from "${FROM_REF}" \
-            --to "${GITHUB_REF_NAME}" \
-            --publish
+          pack_output="$(pnpm --dir "${PACKAGE_DIR}" pack --pack-destination "${RUNNER_TEMP}")"
+          echo "${pack_output}"
+
+          tarball="$(printf '%s\n' "${pack_output}" | tail -n 1)"
+          npm publish "${tarball}" --access public
         env:
           PACKAGE_DIR: ${{ steps.package.outputs.dir }}
-          FROM_REF: ${{ steps.previous-tag.outputs.from }}
 
       - name: Create GitHub release
-        run: npx changelogen@latest gh release "${GITHUB_REF_NAME}" --dir "${PACKAGE_DIR}" --token "${GITHUB_TOKEN}"
+        run: npx changelogithub@latest --from "${FROM_REF}" --to "${GITHUB_REF_NAME}" --github "${GITHUB_REPOSITORY}" --name "${GITHUB_REF_NAME}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGE_DIR: ${{ steps.package.outputs.dir }}
+          FROM_REF: ${{ steps.previous-tag.outputs.from }}
