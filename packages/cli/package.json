@@ -23,7 +23,9 @@
     "access": "public"
   },
   "scripts": {
-    "pack": "vp pack src/index.ts --clean --dts --format esm --sourcemap"
+    "pack": "vp pack src/index.ts --clean --dts --format esm --sourcemap",
+    "pkg:link": "pnpm add -g .",
+    "pkg:unlink": "pnpm remove -g @envolix/cli"
   },
   "dependencies": {
     "@envolix/env-parser": "workspace:*",

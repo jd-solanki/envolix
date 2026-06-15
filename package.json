@@ -16,6 +16,8 @@
   "type": "module",
   "scripts": {
     "check": "vp check",
+    "cli:link": "pnpm --filter @envolix/cli run pkg:link",
+    "cli:unlink": "pnpm --filter @envolix/cli run pkg:unlink",
     "ready": "vp run -r pack && vp check && vp test",
     "release:cli": "cd packages/cli && pnpm dlx bumpp patch --tag \"cli-v%s\" --commit \"chore(cli): release v%s\" --push",
     "release:env-parser": "cd packages/env-parser && pnpm dlx bumpp patch --tag \"env-parser-v%s\" --commit \"chore(env-parser): release v%s\" --push",
