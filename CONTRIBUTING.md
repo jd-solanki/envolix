@@ -5,7 +5,7 @@ Thanks for helping improve Envolix.
 ## Requirements
 
 - Node `>=24 <25`
-- `pnpm@10`
+- `pnpm` (See exact version in `package.json`)
 - Vite+ through the repository scripts
 
 The repository root is a private pnpm workspace. The public packages live under `packages/*`.

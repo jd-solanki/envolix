@@ -90,7 +90,7 @@ This repository is a Vite+ monorepo. Use `vp` as the canonical task entry point 
 Project expectations:
 
 - Node `>=24 <25`
-- `pnpm@10`
+- `pnpm` (See exact version in `package.json`)
 - ESM-only package output
 
 Common commands:
