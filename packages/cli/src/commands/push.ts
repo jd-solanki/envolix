@@ -2,20 +2,26 @@ import type { EnvDiagnostic } from '@envolix/env-parser';
 import { confirm } from '@inquirer/prompts';
 import { Command, InvalidArgumentError } from 'commander';
 import pc from 'picocolors';
-import { GitHubProvider } from '../lib/provider/github.js';
-import type { Provider, PushPlan } from '../lib/provider/index.js';
+import {
+  createProvider,
+  formatProviderTarget,
+  formatSupportedProviderNames,
+  parseProviderName,
+  type ProviderName,
+} from '../lib/provider/catalog.js';
+import type { PushPlan } from '../lib/provider/index.js';
 import {
   PushWorkflowDiagnosticError,
-  PushWorkflowError,
   executePush,
   planPush,
   type PushResult,
 } from '../lib/push/workflow.js';
+import { SourceEnvFileError } from '../lib/source-env-file.js';
 import type { PushValidationDiagnostic } from '../lib/push/validation.js';
 
 interface PushOptions {
   readonly source: string;
-  readonly provider: 'github';
+  readonly provider: ProviderName;
   readonly repo?: string;
   readonly environment?: string;
   readonly dryRun: boolean;
@@ -25,7 +31,11 @@ interface PushOptions {
 export const pushCommand = new Command('push')
   .description('Push source env values to a provider.')
   .option('-s, --source <path>', 'source env file', '.env')
-  .requiredOption('-p, --provider <name>', 'provider to push to (github)', parseProvider)
+  .requiredOption(
+    '-p, --provider <name>',
+    `provider to push to (${formatSupportedProviderNames()})`,
+    parseProvider,
+  )
   .option('--repo <owner/name>', 'GitHub repository to push to')
   .option('-e, --environment <name>', 'GitHub Environment to push to')
   .option('--dry-run', 'print the plan without writing remote values', false)
@@ -41,7 +51,7 @@ export const pushCommand = new Command('push')
         ...(options.environment === undefined ? {} : { environment: options.environment }),
       });
 
-      printPlan(plan);
+      printPlan(options.provider, plan);
 
       if (options.dryRun) {
         console.log(pc.yellow('Dry run: no remote values were changed.'));
@@ -54,7 +64,7 @@ export const pushCommand = new Command('push')
       }
 
       const result = await executePush(plan, provider);
-      printResult(result);
+      printResult(options.provider, result);
       if (!result.ok) {
         process.exitCode = 1;
       }
@@ -65,23 +75,19 @@ export const pushCommand = new Command('push')
   });
 
 function parseProvider(value: string): PushOptions['provider'] {
-  if (value === 'github') {
-    return value;
+  const providerName = parseProviderName(value);
+  if (providerName !== undefined) {
+    return providerName;
   }
 
-  throw new InvalidArgumentError(`Unsupported provider "${value}". Supported providers: github.`);
+  throw new InvalidArgumentError(
+    `Unsupported provider "${value}". Supported providers: ${formatSupportedProviderNames()}.`,
+  );
 }
 
-function createProvider(provider: PushOptions['provider']): Provider {
-  switch (provider) {
-    case 'github':
-      return new GitHubProvider();
-  }
-}
-
-function printPlan(plan: PushPlan): void {
+function printPlan(providerName: ProviderName, plan: PushPlan): void {
   console.log('Push plan:');
-  console.log(`  ${formatTarget(plan)}`);
+  console.log(`  ${formatProviderTarget(providerName, plan)}`);
 
   if (plan.entries.length === 0) {
     console.log(pc.dim('  No entries to push.'));
@@ -93,23 +99,15 @@ function printPlan(plan: PushPlan): void {
   }
 }
 
-function printResult(result: PushResult): void {
+function printResult(providerName: ProviderName, result: PushResult): void {
   console.log('Push result:');
-  console.log(`  ${formatTarget(result)}`);
+  console.log(`  ${formatProviderTarget(providerName, result)}`);
 
   for (const entry of result.entries) {
     const status = entry.status === 'success' ? pc.green('success') : pc.red('failure');
     const error = entry.error === undefined ? '' : ` ${pc.dim(entry.error)}`;
     console.log(`  ${entry.key} ${status}${error}`);
   }
-}
-
-function formatTarget(targeted: Pick<PushPlan, 'target'>): string {
-  const scope =
-    targeted.target.environment === undefined
-      ? 'GitHub Actions repository scope'
-      : `GitHub Environment: ${targeted.target.environment}`;
-  return targeted.target.repo === undefined ? scope : `${scope} in ${targeted.target.repo}`;
 }
 
 function printError(error: unknown): void {
@@ -121,7 +119,7 @@ function printError(error: unknown): void {
     return;
   }
 
-  if (error instanceof PushWorkflowError) {
+  if (error instanceof SourceEnvFileError) {
     console.error(pc.red('Error: ') + error.message);
     for (const detail of error.details) {
       console.error(pc.dim(detail));

@@ -4,8 +4,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type {
-  Provider,
   ProviderTarget,
+  PullProvider,
   RemoteEntry,
   RemoteVariable,
 } from '../../src/lib/provider/index.js';
@@ -21,7 +21,7 @@ async function withTempProject<T>(callback: (cwd: string) => Promise<T>): Promis
   }
 }
 
-class StubProvider implements Provider {
+class StubProvider implements PullProvider {
   readonly calls: string[] = [];
 
   constructor(
@@ -37,14 +37,6 @@ class StubProvider implements Provider {
   async listRemoteVariables(target: ProviderTarget): Promise<readonly RemoteVariable[]> {
     this.calls.push(`variables:${formatTarget(target)}`);
     return this.remoteVariables;
-  }
-
-  async setSecret(): Promise<void> {
-    throw new Error('pull must not write secrets');
-  }
-
-  async setVariable(): Promise<void> {
-    throw new Error('pull must not write variables');
   }
 }
 

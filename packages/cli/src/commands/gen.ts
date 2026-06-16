@@ -6,6 +6,7 @@ import {
   GenWorkflowError,
   runGenWorkflow,
 } from '../lib/gen-workflow.js';
+import { SourceEnvFileError } from '../lib/source-env-file.js';
 import type { TargetGenerationDiagnostic } from '../lib/target-generation.js';
 
 interface GenOptions {
@@ -41,6 +42,14 @@ function printError(error: unknown): void {
   }
 
   if (error instanceof GenWorkflowError) {
+    console.error(pc.red('Error: ') + error.message);
+    for (const detail of error.details) {
+      console.error(pc.dim(detail));
+    }
+    return;
+  }
+
+  if (error instanceof SourceEnvFileError) {
     console.error(pc.red('Error: ') + error.message);
     for (const detail of error.details) {
       console.error(pc.dim(detail));

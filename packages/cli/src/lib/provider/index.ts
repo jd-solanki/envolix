@@ -39,10 +39,15 @@ export interface PushPlan {
   readonly entries: readonly PushPlanEntry[];
 }
 
-// Providers expose remote state separately from writes so push can show a reviewable plan first.
-export interface Provider {
+export interface PushProvider {
   listRemoteEntries(target: ProviderTarget): Promise<readonly RemoteEntry[]>;
-  listRemoteVariables(target: ProviderTarget): Promise<readonly RemoteVariable[]>;
   setSecret(key: string, value: string, target: ProviderTarget): Promise<void>;
   setVariable(key: string, value: string, target: ProviderTarget): Promise<void>;
 }
+
+export interface PullProvider {
+  listRemoteEntries(target: ProviderTarget): Promise<readonly RemoteEntry[]>;
+  listRemoteVariables(target: ProviderTarget): Promise<readonly RemoteVariable[]>;
+}
+
+export interface Provider extends PushProvider, PullProvider {}
