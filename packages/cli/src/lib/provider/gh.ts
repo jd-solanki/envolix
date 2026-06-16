@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import type { ProviderTarget } from './index.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -34,32 +35,42 @@ export class GhCommandError extends Error {
   }
 }
 
+export class GhEnvironmentNotFoundError extends Error {
+  constructor(readonly environment: string) {
+    super(`GitHub Environment "${environment}" does not exist.`);
+    this.name = 'GhEnvironmentNotFoundError';
+  }
+}
+
 export class GhAdapter {
   constructor(private readonly runGh: GhRunner = runGhCommand) {}
 
-  async listSecrets(): Promise<readonly string[]> {
-    const result = await this.run(['secret', 'list', '--json', 'name']);
+  async listSecrets(target: ProviderTarget = {}): Promise<readonly string[]> {
+    const result = await this.run(withTarget(['secret', 'list', '--json', 'name'], target), target);
     return parseGhNameList(result.stdout);
   }
 
-  async listVariables(): Promise<readonly string[]> {
-    const result = await this.run(['variable', 'list', '--json', 'name']);
+  async listVariables(target: ProviderTarget = {}): Promise<readonly string[]> {
+    const result = await this.run(
+      withTarget(['variable', 'list', '--json', 'name'], target),
+      target,
+    );
     return parseGhNameList(result.stdout);
   }
 
-  async setSecret(key: string, value: string): Promise<void> {
-    await this.run(['secret', 'set', key, '--body', value]);
+  async setSecret(key: string, value: string, target: ProviderTarget = {}): Promise<void> {
+    await this.run(withTarget(['secret', 'set', key, '--body', value], target), target);
   }
 
-  async setVariable(key: string, value: string): Promise<void> {
-    await this.run(['variable', 'set', key, '--body', value]);
+  async setVariable(key: string, value: string, target: ProviderTarget = {}): Promise<void> {
+    await this.run(withTarget(['variable', 'set', key, '--body', value], target), target);
   }
 
-  private async run(args: readonly string[]): Promise<GhRunResult> {
+  private async run(args: readonly string[], target: ProviderTarget): Promise<GhRunResult> {
     try {
       return await this.runGh(args);
     } catch (error) {
-      throw translateGhError(error);
+      throw translateGhError(error, target);
     }
   }
 }
@@ -88,12 +99,20 @@ function parseGhNameList(stdout: string): readonly string[] {
   );
 }
 
-function translateGhError(error: unknown): Error {
+function withTarget(args: readonly string[], target: ProviderTarget): readonly string[] {
+  return target.environment === undefined ? args : [...args, '--env', target.environment];
+}
+
+function translateGhError(error: unknown, target: ProviderTarget): Error {
   if (isNodeError(error) && error.code === 'ENOENT') {
     return new GhNotFoundError();
   }
 
   const stderr = getStderr(error);
+  if (target.environment !== undefined && isEnvironmentNotFound(stderr, target.environment)) {
+    return new GhEnvironmentNotFoundError(target.environment);
+  }
+
   if (isAuthenticationFailure(stderr)) {
     return new GhNotAuthenticatedError();
   }
@@ -104,6 +123,13 @@ function translateGhError(error: unknown): Error {
 
 function isAuthenticationFailure(stderr: string): boolean {
   return /gh auth login|not logged in|authentication required|could not authenticate/i.test(stderr);
+}
+
+function isEnvironmentNotFound(stderr: string, environment: string): boolean {
+  return (
+    /HTTP 404|not found/i.test(stderr) &&
+    stderr.toLowerCase().includes(`/environments/${environment.toLowerCase()}`)
+  );
 }
 
 function getStderr(error: unknown): string {

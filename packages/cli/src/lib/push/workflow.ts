@@ -1,7 +1,13 @@
 import { parseEnvDocument, type EnvDiagnostic } from '@envolix/env-parser';
 import { stat, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { Provider, PushPlan, PushPlanEntry, RemoteEntry } from '../provider/index.js';
+import type {
+  Provider,
+  ProviderTarget,
+  PushPlan,
+  PushPlanEntry,
+  RemoteEntry,
+} from '../provider/index.js';
 import {
   getEntryVarType,
   validateEnvDocumentForPush,
@@ -12,6 +18,7 @@ export interface PlanPushOptions {
   readonly cwd: string;
   readonly source: string;
   readonly provider: Provider;
+  readonly environment?: string;
 }
 
 export interface PushResultEntry {
@@ -24,6 +31,7 @@ export interface PushResultEntry {
 
 export interface PushResult {
   readonly ok: boolean;
+  readonly target: ProviderTarget;
   readonly entries: readonly PushResultEntry[];
 }
 
@@ -61,7 +69,11 @@ export async function planPush(options: PlanPushOptions): Promise<PushPlan> {
     throw new PushWorkflowDiagnosticError(sourcePath, diagnostics);
   }
 
-  const remoteEntries = await options.provider.listRemoteEntries();
+  const target: ProviderTarget =
+    options.environment === undefined
+      ? Object.freeze({})
+      : Object.freeze({ environment: options.environment });
+  const remoteEntries = await options.provider.listRemoteEntries(target);
   const remoteEntryKeys = new Set(remoteEntries.map(remoteEntryKey));
   const entries = document.nodes
     .filter(
@@ -82,7 +94,7 @@ export async function planPush(options: PlanPushOptions): Promise<PushPlan> {
       };
     });
 
-  return Object.freeze({ entries: Object.freeze(entries) });
+  return Object.freeze({ target, entries: Object.freeze(entries) });
 }
 
 export async function executePush(plan: PushPlan, provider: Provider): Promise<PushResult> {
@@ -91,9 +103,9 @@ export async function executePush(plan: PushPlan, provider: Provider): Promise<P
   for (const entry of plan.entries) {
     try {
       if (entry.kind === 'secret') {
-        await provider.setSecret(entry.key, entry.value);
+        await provider.setSecret(entry.key, entry.value, plan.target);
       } else {
-        await provider.setVariable(entry.key, entry.value);
+        await provider.setVariable(entry.key, entry.value, plan.target);
       }
 
       entries.push({
@@ -115,6 +127,7 @@ export async function executePush(plan: PushPlan, provider: Provider): Promise<P
 
   return Object.freeze({
     ok: entries.every((entry) => entry.status === 'success'),
+    target: plan.target,
     entries: Object.freeze(entries),
   });
 }

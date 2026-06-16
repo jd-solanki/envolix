@@ -16,6 +16,7 @@ import type { PushValidationDiagnostic } from '../lib/push/validation.js';
 interface PushOptions {
   readonly source: string;
   readonly provider: 'github';
+  readonly environment?: string;
   readonly dryRun: boolean;
   readonly yes: boolean;
 }
@@ -24,6 +25,7 @@ export const pushCommand = new Command('push')
   .description('Push source env values to a provider.')
   .option('-s, --source <path>', 'source env file', '.env')
   .requiredOption('-p, --provider <name>', 'provider to push to (github)', parseProvider)
+  .option('-e, --environment <name>', 'GitHub Environment to push to')
   .option('--dry-run', 'print the plan without writing remote values', false)
   .option('-y, --yes', 'skip confirmation prompt', false)
   .action(async (options: PushOptions) => {
@@ -33,6 +35,7 @@ export const pushCommand = new Command('push')
         cwd: process.cwd(),
         source: options.source,
         provider,
+        ...(options.environment === undefined ? {} : { environment: options.environment }),
       });
 
       printPlan(plan);
@@ -75,6 +78,7 @@ function createProvider(provider: PushOptions['provider']): Provider {
 
 function printPlan(plan: PushPlan): void {
   console.log('Push plan:');
+  console.log(`  ${formatTarget(plan)}`);
 
   if (plan.entries.length === 0) {
     console.log(pc.dim('  No entries to push.'));
@@ -88,12 +92,19 @@ function printPlan(plan: PushPlan): void {
 
 function printResult(result: PushResult): void {
   console.log('Push result:');
+  console.log(`  ${formatTarget(result)}`);
 
   for (const entry of result.entries) {
     const status = entry.status === 'success' ? pc.green('success') : pc.red('failure');
     const error = entry.error === undefined ? '' : ` ${pc.dim(entry.error)}`;
     console.log(`  ${entry.key} ${status}${error}`);
   }
+}
+
+function formatTarget(targeted: Pick<PushPlan, 'target'>): string {
+  return targeted.target.environment === undefined
+    ? 'GitHub Actions repository scope'
+    : `GitHub Environment: ${targeted.target.environment}`;
 }
 
 function printError(error: unknown): void {

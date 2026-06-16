@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vite-plus/test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Provider, RemoteEntry } from '../../src/lib/provider/index.js';
+import type { Provider, ProviderTarget, RemoteEntry } from '../../src/lib/provider/index.js';
 import { PushWorkflowDiagnosticError, executePush, planPush } from '../../src/lib/push/workflow.js';
 
 async function withTempProject<T>(callback: (cwd: string) => Promise<T>): Promise<T> {
@@ -24,18 +24,18 @@ class StubProvider implements Provider {
     private readonly failKeys: ReadonlySet<string> = new Set(),
   ) {}
 
-  async listRemoteEntries(): Promise<readonly RemoteEntry[]> {
-    this.calls.push('list');
+  async listRemoteEntries(target: ProviderTarget): Promise<readonly RemoteEntry[]> {
+    this.calls.push(`list:${formatTarget(target)}`);
     return this.remoteEntries;
   }
 
-  async setSecret(key: string): Promise<void> {
-    this.calls.push(`secret:${key}`);
+  async setSecret(key: string, _value: string, target: ProviderTarget): Promise<void> {
+    this.calls.push(`secret:${key}:${formatTarget(target)}`);
     this.failIfConfigured(key);
   }
 
-  async setVariable(key: string): Promise<void> {
-    this.calls.push(`variable:${key}`);
+  async setVariable(key: string, _value: string, target: ProviderTarget): Promise<void> {
+    this.calls.push(`variable:${key}:${formatTarget(target)}`);
     this.failIfConfigured(key);
   }
 
@@ -44,6 +44,10 @@ class StubProvider implements Provider {
       throw new Error(`failed ${key}`);
     }
   }
+}
+
+function formatTarget(target: ProviderTarget): string {
+  return target.environment ?? 'repo';
 }
 
 describe('push workflow', () => {
@@ -61,7 +65,38 @@ describe('push workflow', () => {
         { key: 'NEW_SECRET', value: 's1', kind: 'secret', action: 'create' },
         { key: 'EXISTING_VAR', value: 'v1', kind: 'variable', action: 'update' },
       ]);
-      expect(provider.calls).toEqual(['list']);
+      expect(plan.target).toEqual({});
+      expect(provider.calls).toEqual(['list:repo']);
+    });
+  });
+
+  it('threads an environment target through planning and execution', async () => {
+    await withTempProject(async (cwd) => {
+      await writeFile(
+        join(cwd, '.env'),
+        ['TOKEN=s1 #varType:secret', 'PUBLIC_URL=https://example.test #varType:plain'].join('\n'),
+      );
+      const provider = new StubProvider([{ key: 'TOKEN', kind: 'secret' }]);
+
+      const plan = await planPush({
+        cwd,
+        source: '.env',
+        provider,
+        environment: 'production',
+      });
+      const result = await executePush(plan, provider);
+
+      expect(plan.target).toEqual({ environment: 'production' });
+      expect(provider.calls).toEqual([
+        'list:production',
+        'secret:TOKEN:production',
+        'variable:PUBLIC_URL:production',
+      ]);
+      expect(result.target).toEqual({ environment: 'production' });
+      expect(result.entries).toEqual([
+        { key: 'TOKEN', kind: 'secret', action: 'update', status: 'success' },
+        { key: 'PUBLIC_URL', kind: 'variable', action: 'create', status: 'success' },
+      ]);
     });
   });
 
@@ -81,6 +116,7 @@ describe('push workflow', () => {
     const provider = new StubProvider([], new Set(['BROKEN_VAR']));
     const result = await executePush(
       {
+        target: {},
         entries: [
           { key: 'SECRET', value: 's1', kind: 'secret', action: 'create' },
           { key: 'BROKEN_VAR', value: 'v1', kind: 'variable', action: 'create' },
@@ -91,9 +127,9 @@ describe('push workflow', () => {
     );
 
     expect(provider.calls).toEqual([
-      'secret:SECRET',
-      'variable:BROKEN_VAR',
-      'variable:AFTER_FAILURE',
+      'secret:SECRET:repo',
+      'variable:BROKEN_VAR:repo',
+      'variable:AFTER_FAILURE:repo',
     ]);
     expect(result.ok).toBe(false);
     expect(result.entries).toEqual([

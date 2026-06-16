@@ -148,6 +148,7 @@ describe('@envolix/cli', () => {
     expect(stdout).toContain('Usage: envolix push [options]');
     expect(stdout).toContain('-s, --source <path>');
     expect(stdout).toContain('-p, --provider <name>');
+    expect(stdout).toContain('-e, --environment <name>');
     expect(stdout).toContain('--dry-run');
     expect(stdout).toContain('-y, --yes');
     expect(missingProvider.stderr).toContain(
@@ -194,6 +195,47 @@ describe('@envolix/cli', () => {
       expect(stdout).toContain('create');
       expect(stdout).toContain('variable');
       expect(stdout).toContain('Dry run: no remote values were changed.');
+    });
+  });
+
+  it('prints an environment-scoped push dry-run plan', async () => {
+    await withTempProject(async (cwd) => {
+      const binDir = join(cwd, 'bin');
+      await mkdir(binDir);
+      await writeFile(
+        join(binDir, 'gh'),
+        [
+          '#!/usr/bin/env node',
+          'const args = process.argv.slice(2);',
+          'const expectedEnv = args.at(-2) === "--env" && args.at(-1) === "production";',
+          'if (!expectedEnv) { console.error("missing environment flag"); process.exit(2); }',
+          'if (args[0] === "secret" && args[1] === "list") console.log(JSON.stringify([]));',
+          'else if (args[0] === "variable" && args[1] === "list") console.log(JSON.stringify([{ name: "PUBLIC_URL" }]));',
+          'else { console.error("unexpected write"); process.exit(2); }',
+        ].join('\n'),
+      );
+      await chmod(join(binDir, 'gh'), 0o755);
+      await writeFile(
+        join(cwd, '.env'),
+        ['TOKEN=secret #varType:secret', 'PUBLIC_URL=https://example.test #varType:plain'].join(
+          '\n',
+        ),
+      );
+
+      const { stdout, stderr } = await runCliWithEnv(
+        ['push', '--provider', 'github', '--environment', 'production', '--dry-run'],
+        cwd,
+        {
+          PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        },
+      );
+
+      expect(stderr).toBe('');
+      expect(stdout).toContain('GitHub Environment: production');
+      expect(stdout).toContain('TOKEN');
+      expect(stdout).toContain('create');
+      expect(stdout).toContain('PUBLIC_URL');
+      expect(stdout).toContain('update');
     });
   });
 

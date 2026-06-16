@@ -1,13 +1,13 @@
-import type { Provider, RemoteEntry } from './index.js';
+import type { Provider, ProviderTarget, RemoteEntry } from './index.js';
 import { GhAdapter } from './gh.js';
 
 export class GitHubProvider implements Provider {
   constructor(private readonly gh = new GhAdapter()) {}
 
-  async listRemoteEntries(): Promise<readonly RemoteEntry[]> {
+  async listRemoteEntries(target: ProviderTarget): Promise<readonly RemoteEntry[]> {
     const [secrets, variables] = await Promise.all([
-      this.gh.listSecrets(),
-      this.gh.listVariables(),
+      this.gh.listSecrets(target),
+      this.gh.listVariables(target),
     ]);
 
     return Object.freeze([
@@ -16,11 +16,11 @@ export class GitHubProvider implements Provider {
     ]);
   }
 
-  async setSecret(key: string, value: string): Promise<void> {
-    await this.gh.setSecret(key, value);
+  async setSecret(key: string, value: string, target: ProviderTarget): Promise<void> {
+    await this.gh.setSecret(key, value, target);
   }
 
-  async setVariable(key: string, value: string): Promise<void> {
-    await this.gh.setVariable(key, value);
+  async setVariable(key: string, value: string, target: ProviderTarget): Promise<void> {
+    await this.gh.setVariable(key, value, target);
   }
 }
