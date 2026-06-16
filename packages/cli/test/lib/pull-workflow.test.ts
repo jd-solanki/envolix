@@ -8,8 +8,8 @@ import type {
   PullProvider,
   RemoteEntry,
   RemoteVariable,
-} from '../../src/lib/provider/index.js';
-import { executePull, planPull } from '../../src/lib/pull/workflow.js';
+} from '../../src/lib/provider/index';
+import { executePull, planPull } from '../../src/lib/pull/workflow';
 
 async function withTempProject<T>(callback: (cwd: string) => Promise<T>): Promise<T> {
   const cwd = await mkdtemp(join(tmpdir(), 'envolix-pull-workflow-'));

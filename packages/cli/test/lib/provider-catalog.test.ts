@@ -5,8 +5,8 @@ import {
   formatProviderTarget,
   formatSupportedProviderNames,
   parseProviderName,
-} from '../../src/lib/provider/catalog.js';
-import { GitHubProvider } from '../../src/lib/provider/github.js';
+} from '../../src/lib/provider/catalog';
+import { GitHubProvider } from '../../src/lib/provider/github';
 
 describe('provider catalog', () => {
   it('parses supported provider names and rejects unsupported names', () => {

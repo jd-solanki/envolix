@@ -1,10 +1,10 @@
-import { createProviderTarget, type ProviderTarget, type PullProvider } from '../provider/index.js';
+import { createProviderTarget, type ProviderTarget, type PullProvider } from '../provider/index';
 import {
   createPulledEnvFile,
   planPulledEnvFile,
   type PulledEnvFileEntry,
   type PulledEnvFilePlan,
-} from './pulled-env-file.js';
+} from './pulled-env-file';
 
 export interface PlanPullOptions {
   readonly cwd: string;

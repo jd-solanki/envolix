@@ -1,5 +1,5 @@
 import type { EnvDiagnostic, EnvDocument, EnvEntry, EnvLineRange } from '@envolix/env-parser';
-import type { RemoteEntryKind } from '../provider/index.js';
+import type { RemoteEntryKind } from '../provider/index';
 
 export type PushValidationDiagnosticCode = 'DuplicateKey' | 'MissingVarTypeAnnotation';
 

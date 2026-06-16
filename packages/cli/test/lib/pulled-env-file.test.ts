@@ -7,7 +7,7 @@ import {
   PulledEnvFileError,
   createPulledEnvFile,
   planPulledEnvFile,
-} from '../../src/lib/pull/pulled-env-file.js';
+} from '../../src/lib/pull/pulled-env-file';
 
 async function withTempProject<T>(callback: (cwd: string) => Promise<T>): Promise<T> {
   const cwd = await mkdtemp(join(tmpdir(), 'envolix-pulled-env-file-'));

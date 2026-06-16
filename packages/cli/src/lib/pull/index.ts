@@ -1,2 +1,2 @@
-export * from './pulled-env-file.js';
-export * from './workflow.js';
+export * from './pulled-env-file';
+export * from './workflow';

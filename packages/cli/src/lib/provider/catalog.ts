@@ -1,5 +1,5 @@
-import { GitHubProvider } from './github.js';
-import type { Provider, ProviderTarget } from './index.js';
+import { GitHubProvider } from './github';
+import type { Provider, ProviderTarget } from './index';
 
 export type ProviderName = 'github';
 

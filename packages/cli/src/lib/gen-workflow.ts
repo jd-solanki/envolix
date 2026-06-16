@@ -3,12 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { readSourceEnvFile } from './source-env-file.js';
+import { readSourceEnvFile } from './source-env-file';
 import {
   renderTargetEnvDocument,
   validateEnvDocumentForTargetGeneration,
   type TargetGenerationDiagnostic,
-} from './target-generation.js';
+} from './target-generation';
 
 export interface GenWorkflowOptions {
   readonly cwd: string;

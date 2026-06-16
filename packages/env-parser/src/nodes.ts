@@ -1,4 +1,4 @@
-import type { EnvEntry, EnvNode } from './types.js';
+import type { EnvEntry, EnvNode } from './types';
 
 export const emptyEntries = Object.freeze([]) as readonly EnvEntry[];
 

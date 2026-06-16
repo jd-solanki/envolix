@@ -1,9 +1,9 @@
-import { parseComment } from './comments.js';
-import { createUnknownLineDiagnostic } from './diagnostics.js';
-import { parseEntryAt } from './entry-parser.js';
-import { detectLineEnding, joinRawLines, splitPhysicalLines } from './lines.js';
-import { createKeyIndex, emptyEntries, freezeNode } from './nodes.js';
-import type { EnvDiagnostic, EnvDocument, EnvNode } from './types.js';
+import { parseComment } from './comments';
+import { createUnknownLineDiagnostic } from './diagnostics';
+import { parseEntryAt } from './entry-parser';
+import { detectLineEnding, joinRawLines, splitPhysicalLines } from './lines';
+import { createKeyIndex, emptyEntries, freezeNode } from './nodes';
+import type { EnvDiagnostic, EnvDocument, EnvNode } from './types';
 
 export function parseEnvDocument(source: string): EnvDocument {
   const physicalLines = splitPhysicalLines(source);

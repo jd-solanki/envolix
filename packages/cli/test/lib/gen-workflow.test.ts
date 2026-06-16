@@ -7,7 +7,7 @@ import {
   GenWorkflowDiagnosticError,
   GenWorkflowError,
   runGenWorkflow,
-} from '../../src/lib/gen-workflow.js';
+} from '../../src/lib/gen-workflow';
 
 async function withTempProject<T>(callback: (cwd: string) => Promise<T>): Promise<T> {
   const cwd = await mkdtemp(join(tmpdir(), 'envolix-gen-workflow-'));

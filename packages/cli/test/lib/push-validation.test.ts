@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vite-plus/test';
 
-import { parseEnvDocument } from '../../../env-parser/src/index.js';
-import { validateEnvDocumentForPush } from '../../src/lib/push/validation.js';
+import { parseEnvDocument } from '../../../env-parser/src/index';
+import { validateEnvDocumentForPush } from '../../src/lib/push/validation';
 
 describe('push validation', () => {
   it('requires each entry to have a valid inline varType annotation', () => {

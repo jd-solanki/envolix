@@ -1,8 +1,8 @@
-import { parseComment } from './comments.js';
-import { createDiagnostic, createUnknownLineDiagnostic } from './diagnostics.js';
-import { joinRawLines, type PhysicalLine } from './lines.js';
-import { freezeNode } from './nodes.js';
-import type { EnvComment, EnvDiagnostic, EnvEntry } from './types.js';
+import { parseComment } from './comments';
+import { createDiagnostic, createUnknownLineDiagnostic } from './diagnostics';
+import { joinRawLines, type PhysicalLine } from './lines';
+import { freezeNode } from './nodes';
+import type { EnvComment, EnvDiagnostic, EnvEntry } from './types';
 
 interface EntryParseResult {
   readonly entry: EnvEntry | undefined;

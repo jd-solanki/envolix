@@ -8,16 +8,16 @@ import {
   formatSupportedProviderNames,
   parseProviderName,
   type ProviderName,
-} from '../lib/provider/catalog.js';
-import type { PushPlan } from '../lib/provider/index.js';
+} from '../lib/provider/catalog';
+import type { PushPlan } from '../lib/provider/index';
 import {
   PushWorkflowDiagnosticError,
   executePush,
   planPush,
   type PushResult,
-} from '../lib/push/workflow.js';
-import { SourceEnvFileError } from '../lib/source-env-file.js';
-import type { PushValidationDiagnostic } from '../lib/push/validation.js';
+} from '../lib/push/workflow';
+import { SourceEnvFileError } from '../lib/source-env-file';
+import type { PushValidationDiagnostic } from '../lib/push/validation';
 
 interface PushOptions {
   readonly source: string;

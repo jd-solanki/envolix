@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { access, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import type { RemoteEntry } from '../provider/index.js';
+import type { RemoteEntry } from '../provider/index';
 
 const execFileAsync = promisify(execFile);
 

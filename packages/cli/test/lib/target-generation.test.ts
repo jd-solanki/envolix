@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vite-plus/test';
 
-import { parseEnvDocument } from '../../../env-parser/src/index.js';
+import { parseEnvDocument } from '../../../env-parser/src/index';
 import {
   TargetGenerationError,
   assertEnvDocumentValidForTargetGeneration,
   renderTargetEnvDocument,
   validateEnvDocumentForTargetGeneration,
-} from '../../src/lib/target-generation.js';
+} from '../../src/lib/target-generation';
 
 describe('target generation', () => {
   it('returns all generation blockers at once and throws a typed validation error', () => {

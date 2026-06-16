@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vite-plus/test';
 
-import * as parserExports from '../src/index.js';
-import { packageName, parseEnvDocument } from '../src/index.js';
+import * as parserExports from '../src/index';
+import { packageName, parseEnvDocument } from '../src/index';
 
 describe('@envolix/env-parser', () => {
   it('exposes the package boundary', () => {

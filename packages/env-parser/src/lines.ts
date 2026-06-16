@@ -1,4 +1,4 @@
-import type { EnvLineEnding } from './types.js';
+import type { EnvLineEnding } from './types';
 
 export interface PhysicalLine {
   readonly text: string;

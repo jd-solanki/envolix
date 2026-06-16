@@ -6,8 +6,8 @@ import {
   formatSupportedProviderNames,
   parseProviderName,
   type ProviderName,
-} from '../lib/provider/catalog.js';
-import { PulledEnvFileError, executePull, planPull, type PullResult } from '../lib/pull/index.js';
+} from '../lib/provider/catalog';
+import { PulledEnvFileError, executePull, planPull, type PullResult } from '../lib/pull/index';
 
 interface PullOptions {
   readonly provider: ProviderName;

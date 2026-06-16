@@ -1,4 +1,4 @@
-import type { EnvComment, EnvCommentSegment } from './types.js';
+import type { EnvComment, EnvCommentSegment } from './types';
 
 export function parseComment(raw: string): EnvComment {
   const segments: EnvCommentSegment[] = [];

@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vite-plus/test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { ProviderTarget, PushProvider, RemoteEntry } from '../../src/lib/provider/index.js';
-import { PushWorkflowDiagnosticError, executePush, planPush } from '../../src/lib/push/workflow.js';
+import type { ProviderTarget, PushProvider, RemoteEntry } from '../../src/lib/provider/index';
+import { PushWorkflowDiagnosticError, executePush, planPush } from '../../src/lib/push/workflow';
 
 async function withTempProject<T>(callback: (cwd: string) => Promise<T>): Promise<T> {
   const cwd = await mkdtemp(join(tmpdir(), 'envolix-push-workflow-'));

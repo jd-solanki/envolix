@@ -1,7 +1,7 @@
 export const packageName = '@envolix/env-parser';
 
-export { parseEnvDocument } from './document.js';
-export { parseEnvDocument as parseEnv } from './document.js';
+export { parseEnvDocument } from './document';
+export { parseEnvDocument as parseEnv } from './document';
 export type {
   EnvBlankLine,
   EnvComment,
@@ -17,4 +17,4 @@ export type {
   EnvNode,
   EnvQuoteStyle,
   EnvUnknownLine,
-} from './types.js';
+} from './types';

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vite-plus/test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { SourceEnvFileError, readSourceEnvFile } from '../../src/lib/source-env-file.js';
+import { SourceEnvFileError, readSourceEnvFile } from '../../src/lib/source-env-file';
 
 async function withTempProject<T>(callback: (cwd: string) => Promise<T>): Promise<T> {
   const cwd = await mkdtemp(join(tmpdir(), 'envolix-source-env-file-'));

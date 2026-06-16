@@ -1,4 +1,4 @@
-import type { EnvDiagnostic } from './types.js';
+import type { EnvDiagnostic } from './types';
 
 export function createUnknownLineDiagnostic(line: string, lineNumber: number): EnvDiagnostic {
   return createDiagnostic({

@@ -1,18 +1,18 @@
 import type { EnvDiagnostic, EnvEntry } from '@envolix/env-parser';
-import { createProviderTarget } from '../provider/index.js';
+import { createProviderTarget } from '../provider/index';
 import type {
   ProviderTarget,
   PushProvider,
   PushPlan,
   PushPlanEntry,
   RemoteEntry,
-} from '../provider/index.js';
+} from '../provider/index';
 import {
   getEntryVarType,
   validateEnvDocumentForPush,
   type PushValidationDiagnostic,
-} from './validation.js';
-import { readSourceEnvFile } from '../source-env-file.js';
+} from './validation';
+import { readSourceEnvFile } from '../source-env-file';
 
 export interface PlanPushOptions {
   readonly cwd: string;

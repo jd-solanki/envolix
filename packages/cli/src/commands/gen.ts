@@ -1,13 +1,9 @@
 import type { EnvDiagnostic } from '@envolix/env-parser';
 import { Command } from 'commander';
 import pc from 'picocolors';
-import {
-  GenWorkflowDiagnosticError,
-  GenWorkflowError,
-  runGenWorkflow,
-} from '../lib/gen-workflow.js';
-import { SourceEnvFileError } from '../lib/source-env-file.js';
-import type { TargetGenerationDiagnostic } from '../lib/target-generation.js';
+import { GenWorkflowDiagnosticError, GenWorkflowError, runGenWorkflow } from '../lib/gen-workflow';
+import { SourceEnvFileError } from '../lib/source-env-file';
+import type { TargetGenerationDiagnostic } from '../lib/target-generation';
 
 interface GenOptions {
   readonly source: string;
