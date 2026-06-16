@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 import packageJson from '../package.json' with { type: 'json' };
 import { genCommand } from './commands/gen.js';
+import { pullCommand } from './commands/pull.js';
 import { pushCommand } from './commands/push.js';
 
 const program = new Command('envolix')
@@ -10,5 +11,6 @@ const program = new Command('envolix')
 
 program.addCommand(genCommand);
 program.addCommand(pushCommand);
+program.addCommand(pullCommand);
 
 await program.parseAsync();

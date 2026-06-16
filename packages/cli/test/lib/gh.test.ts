@@ -18,20 +18,20 @@ describe('gh adapter', () => {
         return { stdout: JSON.stringify([{ name: 'SECRET' }]), stderr: '' };
       }
       if (args[0] === 'variable' && args[1] === 'list') {
-        return { stdout: JSON.stringify([{ name: 'PLAIN' }]), stderr: '' };
+        return { stdout: JSON.stringify([{ name: 'PLAIN', value: 'v1' }]), stderr: '' };
       }
       return { stdout: '', stderr: '' };
     });
     Object.assign(calls, mutableCalls);
 
     expect(await adapter.listSecrets()).toEqual(['SECRET']);
-    expect(await adapter.listVariables()).toEqual(['PLAIN']);
+    expect(await adapter.listVariables()).toEqual([{ key: 'PLAIN', value: 'v1' }]);
     await adapter.setSecret('SECRET', 's1');
     await adapter.setVariable('PLAIN', 'v1');
 
     expect(mutableCalls).toEqual([
       ['secret', 'list', '--json', 'name'],
-      ['variable', 'list', '--json', 'name'],
+      ['variable', 'list', '--json', 'name,value'],
       ['secret', 'set', 'SECRET', '--body', 's1'],
       ['variable', 'set', 'PLAIN', '--body', 'v1'],
     ]);
@@ -45,20 +45,25 @@ describe('gh adapter', () => {
         return { stdout: JSON.stringify([{ name: 'TOKEN' }]), stderr: '' };
       }
       if (args[0] === 'variable' && args[1] === 'list') {
-        return { stdout: JSON.stringify([{ name: 'PUBLIC_URL' }]), stderr: '' };
+        return {
+          stdout: JSON.stringify([{ name: 'PUBLIC_URL', value: 'https://example.test' }]),
+          stderr: '',
+        };
       }
       return { stdout: '', stderr: '' };
     });
     const target = { environment: 'production' };
 
     expect(await adapter.listSecrets(target)).toEqual(['TOKEN']);
-    expect(await adapter.listVariables(target)).toEqual(['PUBLIC_URL']);
+    expect(await adapter.listVariables(target)).toEqual([
+      { key: 'PUBLIC_URL', value: 'https://example.test' },
+    ]);
     await adapter.setSecret('TOKEN', 's1', target);
     await adapter.setVariable('PUBLIC_URL', 'https://example.test', target);
 
     expect(calls).toEqual([
       ['secret', 'list', '--json', 'name', '--env', 'production'],
-      ['variable', 'list', '--json', 'name', '--env', 'production'],
+      ['variable', 'list', '--json', 'name,value', '--env', 'production'],
       ['secret', 'set', 'TOKEN', '--body', 's1', '--env', 'production'],
       ['variable', 'set', 'PUBLIC_URL', '--body', 'https://example.test', '--env', 'production'],
     ]);

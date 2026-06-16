@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vite-plus/test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Provider, ProviderTarget, RemoteEntry } from '../../src/lib/provider/index.js';
+import type {
+  Provider,
+  ProviderTarget,
+  RemoteEntry,
+  RemoteVariable,
+} from '../../src/lib/provider/index.js';
 import { PushWorkflowDiagnosticError, executePush, planPush } from '../../src/lib/push/workflow.js';
 
 async function withTempProject<T>(callback: (cwd: string) => Promise<T>): Promise<T> {
@@ -27,6 +32,12 @@ class StubProvider implements Provider {
   async listRemoteEntries(target: ProviderTarget): Promise<readonly RemoteEntry[]> {
     this.calls.push(`list:${formatTarget(target)}`);
     return this.remoteEntries;
+  }
+
+  async listRemoteVariables(): Promise<readonly RemoteVariable[]> {
+    return this.remoteEntries
+      .filter((entry) => entry.kind === 'variable')
+      .map((entry) => ({ key: entry.key, value: '' }));
   }
 
   async setSecret(key: string, _value: string, target: ProviderTarget): Promise<void> {

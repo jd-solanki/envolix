@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vite-plus/test';
 
 import { execFile } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -85,6 +85,7 @@ describe('@envolix/cli', () => {
     expect(stdout).toContain('Generate safe example env files');
     expect(stdout).toContain('gen');
     expect(stdout).toContain('push');
+    expect(stdout).toContain('pull');
     expect(stdout).toContain('Generate an example env file');
     expect(dirname(packageBinPath ?? '')).toBe('./dist');
   });
@@ -156,6 +157,53 @@ describe('@envolix/cli', () => {
     );
   });
 
+  it('documents pull options and requires an explicit provider', async () => {
+    const { stdout, stderr } = await runCli(['pull', '--help'], packageRoot);
+    const missingProvider = await runCliFailure(['pull'], packageRoot);
+
+    expect(stderr).toBe('');
+    expect(stdout).toContain('Usage: envolix pull [options]');
+    expect(stdout).toContain('-p, --provider <name>');
+    expect(stdout).toContain('-e, --environment <name>');
+    expect(missingProvider.stderr).toContain(
+      "required option '-p, --provider <name>' not specified",
+    );
+  });
+
+  it('pulls variables and lists blank secrets with a fake GitHub CLI', async () => {
+    await withTempProject(async (cwd) => {
+      const binDir = join(cwd, 'bin');
+      await mkdir(binDir);
+      await writeFile(
+        join(binDir, 'gh'),
+        [
+          '#!/usr/bin/env node',
+          'const args = process.argv.slice(2);',
+          'if (args[0] === "secret" && args[1] === "list") console.log(JSON.stringify([{ name: "TOKEN" }]));',
+          'else if (args[0] === "variable" && args[1] === "list") console.log(JSON.stringify([{ name: "PUBLIC_URL", value: "https://example.test" }]));',
+          'else { console.error("unexpected command"); process.exit(2); }',
+        ].join('\n'),
+      );
+      await chmod(join(binDir, 'gh'), 0o755);
+
+      const { stdout, stderr } = await runCliWithEnv(['pull', '--provider', 'github'], cwd, {
+        PATH: `${binDir}:${process.env.PATH ?? ''}`,
+      });
+      const pulledFiles = (await readdir(cwd)).filter((fileName) =>
+        fileName.startsWith('.env.pull.github.repo.'),
+      );
+
+      expect(pulledFiles).toHaveLength(1);
+      await expect(readFile(join(cwd, pulledFiles[0] ?? ''), 'utf8')).resolves.toBe(
+        ['TOKEN= #varType:secret', 'PUBLIC_URL=https://example.test', ''].join('\n'),
+      );
+      expect(stdout).toContain('Pulled GitHub Actions repository scope');
+      expect(stdout).toContain('Blank remote secrets:');
+      expect(stdout).toContain('TOKEN');
+      expect(stderr).toContain('is not gitignored');
+    });
+  });
+
   it('prints a push dry-run plan without writing remote values', async () => {
     await withTempProject(async (cwd) => {
       const binDir = join(cwd, 'bin');
@@ -210,7 +258,7 @@ describe('@envolix/cli', () => {
           'const expectedEnv = args.at(-2) === "--env" && args.at(-1) === "production";',
           'if (!expectedEnv) { console.error("missing environment flag"); process.exit(2); }',
           'if (args[0] === "secret" && args[1] === "list") console.log(JSON.stringify([]));',
-          'else if (args[0] === "variable" && args[1] === "list") console.log(JSON.stringify([{ name: "PUBLIC_URL" }]));',
+          'else if (args[0] === "variable" && args[1] === "list") console.log(JSON.stringify([{ name: "PUBLIC_URL", value: "https://example.test" }]));',
           'else { console.error("unexpected write"); process.exit(2); }',
         ].join('\n'),
       );

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { ProviderTarget } from './index.js';
+import type { ProviderTarget, RemoteVariable } from './index.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -50,12 +50,12 @@ export class GhAdapter {
     return parseGhNameList(result.stdout);
   }
 
-  async listVariables(target: ProviderTarget = {}): Promise<readonly string[]> {
+  async listVariables(target: ProviderTarget = {}): Promise<readonly RemoteVariable[]> {
     const result = await this.run(
-      withTarget(['variable', 'list', '--json', 'name'], target),
+      withTarget(['variable', 'list', '--json', 'name,value'], target),
       target,
     );
-    return parseGhNameList(result.stdout);
+    return parseGhVariableList(result.stdout);
   }
 
   async setSecret(key: string, value: string, target: ProviderTarget = {}): Promise<void> {
@@ -96,6 +96,28 @@ function parseGhNameList(stdout: string): readonly string[] {
           : undefined,
       )
       .filter((name): name is string => name !== undefined),
+  );
+}
+
+function parseGhVariableList(stdout: string): readonly RemoteVariable[] {
+  const parsed = JSON.parse(stdout === '' ? '[]' : stdout) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new GhCommandError('GitHub CLI returned an unexpected response.', stdout);
+  }
+
+  return Object.freeze(
+    parsed
+      .map((entry) =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        'name' in entry &&
+        'value' in entry &&
+        typeof entry.name === 'string' &&
+        typeof entry.value === 'string'
+          ? { key: entry.name, value: entry.value }
+          : undefined,
+      )
+      .filter((variable): variable is RemoteVariable => variable !== undefined),
   );
 }
 
