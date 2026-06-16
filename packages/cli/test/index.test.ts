@@ -23,6 +23,17 @@ async function runCli(args: readonly string[], cwd: string) {
   });
 }
 
+async function runCliWithEnv(args: readonly string[], cwd: string, env: NodeJS.ProcessEnv) {
+  return execFileAsync(process.execPath, [binPath, ...args], {
+    cwd,
+    env: {
+      ...colorEnabledEnv,
+      ...env,
+      FORCE_COLOR: '1',
+    },
+  });
+}
+
 async function runCliFailure(args: readonly string[], cwd: string) {
   try {
     await runCli(args, cwd);
@@ -73,6 +84,7 @@ describe('@envolix/cli', () => {
     expect(stdout).toContain('Usage: envolix [options] [command]');
     expect(stdout).toContain('Generate safe example env files');
     expect(stdout).toContain('gen');
+    expect(stdout).toContain('push');
     expect(stdout).toContain('Generate an example env file');
     expect(dirname(packageBinPath ?? '')).toBe('./dist');
   });
@@ -126,6 +138,87 @@ describe('@envolix/cli', () => {
     expect(stdout).toContain('-t, --target <path>');
     expect(stdout).toContain('(default: ".env")');
     expect(stdout).toContain('(default: ".env.example")');
+  });
+
+  it('documents push options and requires an explicit provider', async () => {
+    const { stdout, stderr } = await runCli(['push', '--help'], packageRoot);
+    const missingProvider = await runCliFailure(['push', '--dry-run'], packageRoot);
+
+    expect(stderr).toBe('');
+    expect(stdout).toContain('Usage: envolix push [options]');
+    expect(stdout).toContain('-s, --source <path>');
+    expect(stdout).toContain('-p, --provider <name>');
+    expect(stdout).toContain('--dry-run');
+    expect(stdout).toContain('-y, --yes');
+    expect(missingProvider.stderr).toContain(
+      "required option '-p, --provider <name>' not specified",
+    );
+  });
+
+  it('prints a push dry-run plan without writing remote values', async () => {
+    await withTempProject(async (cwd) => {
+      const binDir = join(cwd, 'bin');
+      await mkdir(binDir);
+      await writeFile(
+        join(binDir, 'gh'),
+        [
+          '#!/usr/bin/env node',
+          'const args = process.argv.slice(2);',
+          'if (args[0] === "secret" && args[1] === "list") console.log(JSON.stringify([{ name: "TOKEN" }]));',
+          'else if (args[0] === "variable" && args[1] === "list") console.log(JSON.stringify([]));',
+          'else { console.error("unexpected write"); process.exit(2); }',
+        ].join('\n'),
+      );
+      await chmod(join(binDir, 'gh'), 0o755);
+      await writeFile(
+        join(cwd, '.env'),
+        ['TOKEN=secret #varType:secret', 'PUBLIC_URL=https://example.test #varType:plain'].join(
+          '\n',
+        ),
+      );
+
+      const { stdout, stderr } = await runCliWithEnv(
+        ['push', '--provider', 'github', '--dry-run'],
+        cwd,
+        {
+          PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        },
+      );
+
+      expect(stderr).toBe('');
+      expect(stdout).toContain('Push plan:');
+      expect(stdout).toContain('TOKEN');
+      expect(stdout).toContain('update');
+      expect(stdout).toContain('secret');
+      expect(stdout).toContain('PUBLIC_URL');
+      expect(stdout).toContain('create');
+      expect(stdout).toContain('variable');
+      expect(stdout).toContain('Dry run: no remote values were changed.');
+    });
+  });
+
+  it('refuses push validation failures before calling gh', async () => {
+    await withTempProject(async (cwd) => {
+      const binDir = join(cwd, 'bin');
+      await mkdir(binDir);
+      await writeFile(
+        join(binDir, 'gh'),
+        [
+          '#!/usr/bin/env node',
+          'console.error("gh should not be called");',
+          'process.exit(9);',
+        ].join('\n'),
+      );
+      await chmod(join(binDir, 'gh'), 0o755);
+      await writeFile(join(cwd, '.env'), 'TOKEN=secret\n');
+
+      const result = await runCliFailure(['push', '--provider', 'github', '--dry-run'], cwd);
+
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toContain('MissingVarTypeAnnotation');
+      expect(result.stderr).toContain(`${join(cwd, '.env')}:1`);
+      expect(result.stderr).not.toContain('gh should not be called');
+    });
   });
 
   it('generates .env.example from .env by default', async () => {
