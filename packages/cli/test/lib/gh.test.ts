@@ -10,10 +10,9 @@ import {
 
 describe('gh adapter', () => {
   it('builds repo-level gh argv for listing and setting Actions secrets and variables', async () => {
-    const calls: readonly string[][] = [];
-    const mutableCalls: string[][] = [];
-    const adapter = new GhAdapter(async (args) => {
-      mutableCalls.push([...args]);
+    const calls: { readonly args: readonly string[]; readonly stdin?: string }[] = [];
+    const adapter = new GhAdapter(async (args, options = {}) => {
+      calls.push({ args: [...args], ...options });
       if (args[0] === 'secret' && args[1] === 'list') {
         return { stdout: JSON.stringify([{ name: 'SECRET' }]), stderr: '' };
       }
@@ -22,25 +21,24 @@ describe('gh adapter', () => {
       }
       return { stdout: '', stderr: '' };
     });
-    Object.assign(calls, mutableCalls);
 
     expect(await adapter.listSecrets()).toEqual(['SECRET']);
     expect(await adapter.listVariables()).toEqual([{ key: 'PLAIN', value: 'v1' }]);
     await adapter.setSecret('SECRET', 's1');
     await adapter.setVariable('PLAIN', 'v1');
 
-    expect(mutableCalls).toEqual([
-      ['secret', 'list', '--json', 'name'],
-      ['variable', 'list', '--json', 'name,value'],
-      ['secret', 'set', 'SECRET', '--body', 's1'],
-      ['variable', 'set', 'PLAIN', '--body', 'v1'],
+    expect(calls).toEqual([
+      { args: ['secret', 'list', '--json', 'name'] },
+      { args: ['variable', 'list', '--json', 'name,value'] },
+      { args: ['secret', 'set', 'SECRET'], stdin: 's1' },
+      { args: ['variable', 'set', 'PLAIN', '--body', 'v1'] },
     ]);
   });
 
   it('adds environment scoping to gh argv when a GitHub Environment is targeted', async () => {
-    const calls: string[][] = [];
-    const adapter = new GhAdapter(async (args) => {
-      calls.push([...args]);
+    const calls: { readonly args: readonly string[]; readonly stdin?: string }[] = [];
+    const adapter = new GhAdapter(async (args, options = {}) => {
+      calls.push({ args: [...args], ...options });
       if (args[0] === 'secret' && args[1] === 'list') {
         return { stdout: JSON.stringify([{ name: 'TOKEN' }]), stderr: '' };
       }
@@ -62,10 +60,78 @@ describe('gh adapter', () => {
     await adapter.setVariable('PUBLIC_URL', 'https://example.test', target);
 
     expect(calls).toEqual([
-      ['secret', 'list', '--json', 'name', '--env', 'production'],
-      ['variable', 'list', '--json', 'name,value', '--env', 'production'],
-      ['secret', 'set', 'TOKEN', '--body', 's1', '--env', 'production'],
-      ['variable', 'set', 'PUBLIC_URL', '--body', 'https://example.test', '--env', 'production'],
+      { args: ['secret', 'list', '--json', 'name', '--env', 'production'] },
+      { args: ['variable', 'list', '--json', 'name,value', '--env', 'production'] },
+      { args: ['secret', 'set', 'TOKEN', '--env', 'production'], stdin: 's1' },
+      {
+        args: [
+          'variable',
+          'set',
+          'PUBLIC_URL',
+          '--body',
+          'https://example.test',
+          '--env',
+          'production',
+        ],
+      },
+    ]);
+  });
+
+  it('adds explicit repository scoping to gh argv when a repository is targeted', async () => {
+    const calls: { readonly args: readonly string[]; readonly stdin?: string }[] = [];
+    const adapter = new GhAdapter(async (args, options = {}) => {
+      calls.push({ args: [...args], ...options });
+      if (args[0] === 'secret' && args[1] === 'list') {
+        return { stdout: JSON.stringify([{ name: 'TOKEN' }]), stderr: '' };
+      }
+      if (args[0] === 'variable' && args[1] === 'list') {
+        return {
+          stdout: JSON.stringify([{ name: 'PUBLIC_URL', value: 'https://example.test' }]),
+          stderr: '',
+        };
+      }
+      return { stdout: '', stderr: '' };
+    });
+    const target = { repo: 'acme/app', environment: 'production' };
+
+    expect(await adapter.listSecrets(target)).toEqual(['TOKEN']);
+    expect(await adapter.listVariables(target)).toEqual([
+      { key: 'PUBLIC_URL', value: 'https://example.test' },
+    ]);
+    await adapter.setSecret('TOKEN', 's1', target);
+    await adapter.setVariable('PUBLIC_URL', 'https://example.test', target);
+
+    expect(calls).toEqual([
+      { args: ['secret', 'list', '--json', 'name', '--repo', 'acme/app', '--env', 'production'] },
+      {
+        args: [
+          'variable',
+          'list',
+          '--json',
+          'name,value',
+          '--repo',
+          'acme/app',
+          '--env',
+          'production',
+        ],
+      },
+      {
+        args: ['secret', 'set', 'TOKEN', '--repo', 'acme/app', '--env', 'production'],
+        stdin: 's1',
+      },
+      {
+        args: [
+          'variable',
+          'set',
+          'PUBLIC_URL',
+          '--body',
+          'https://example.test',
+          '--repo',
+          'acme/app',
+          '--env',
+          'production',
+        ],
+      },
     ]);
   });
 

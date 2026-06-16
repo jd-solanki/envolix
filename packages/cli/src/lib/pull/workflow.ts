@@ -2,7 +2,12 @@ import { execFile } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import type { Provider, ProviderTarget, RemoteEntry } from '../provider/index.js';
+import {
+  createProviderTarget,
+  type Provider,
+  type ProviderTarget,
+  type RemoteEntry,
+} from '../provider/index.js';
 import { createPulledEnvFileName } from './naming.js';
 
 const execFileAsync = promisify(execFile);
@@ -11,6 +16,7 @@ export interface PlanPullOptions {
   readonly cwd: string;
   readonly providerName: string;
   readonly provider: Provider;
+  readonly repo?: string;
   readonly environment?: string;
   readonly now?: Date;
 }
@@ -45,10 +51,7 @@ export class PullWorkflowError extends Error {
 }
 
 export async function planPull(options: PlanPullOptions): Promise<PullPlan> {
-  const target: ProviderTarget =
-    options.environment === undefined
-      ? Object.freeze({})
-      : Object.freeze({ environment: options.environment });
+  const target = createProviderTarget(options);
   const [remoteEntries, remoteVariables] = await Promise.all([
     options.provider.listRemoteEntries(target),
     options.provider.listRemoteVariables(target),

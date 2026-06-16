@@ -58,6 +58,10 @@ class StubProvider implements Provider {
 }
 
 function formatTarget(target: ProviderTarget): string {
+  if (target.repo !== undefined) {
+    return [target.repo, target.environment].filter(Boolean).join(':');
+  }
+
   return target.environment ?? 'repo';
 }
 
@@ -108,6 +112,29 @@ describe('push workflow', () => {
         { key: 'TOKEN', kind: 'secret', action: 'update', status: 'success' },
         { key: 'PUBLIC_URL', kind: 'variable', action: 'create', status: 'success' },
       ]);
+    });
+  });
+
+  it('threads an explicit repository target through planning and execution', async () => {
+    await withTempProject(async (cwd) => {
+      await writeFile(join(cwd, '.env'), 'TOKEN=s1 #varType:secret\n');
+      const provider = new StubProvider([{ key: 'TOKEN', kind: 'secret' }]);
+
+      const plan = await planPush({
+        cwd,
+        source: '.env',
+        provider,
+        repo: 'acme/app',
+        environment: 'production',
+      });
+      const result = await executePush(plan, provider);
+
+      expect(plan.target).toEqual({ repo: 'acme/app', environment: 'production' });
+      expect(provider.calls).toEqual([
+        'list:acme/app:production',
+        'secret:TOKEN:acme/app:production',
+      ]);
+      expect(result.target).toEqual({ repo: 'acme/app', environment: 'production' });
     });
   });
 

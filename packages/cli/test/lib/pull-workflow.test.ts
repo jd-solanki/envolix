@@ -49,6 +49,10 @@ class StubProvider implements Provider {
 }
 
 function formatTarget(target: ProviderTarget): string {
+  if (target.repo !== undefined) {
+    return [target.repo, target.environment].filter(Boolean).join(':');
+  }
+
   return target.environment ?? 'repo';
 }
 
@@ -91,6 +95,27 @@ describe('pull workflow', () => {
       expect(plan.target).toEqual({ environment: 'production' });
       expect(provider.calls).toEqual(['entries:production', 'variables:production']);
       expect(result.fileName).toMatch(/^\.env\.pull\.github\.production\.\d{8}T\d{6}Z$/);
+    });
+  });
+
+  it('threads an explicit repository target through planning', async () => {
+    await withTempProject(async (cwd) => {
+      const provider = new StubProvider([{ key: 'TOKEN', kind: 'secret' }], []);
+
+      const plan = await planPull({
+        cwd,
+        providerName: 'github',
+        provider,
+        repo: 'acme/app',
+        environment: 'production',
+      });
+
+      expect(plan.target).toEqual({ repo: 'acme/app', environment: 'production' });
+      expect(provider.calls).toEqual([
+        'entries:acme/app:production',
+        'variables:acme/app:production',
+      ]);
+      expect(plan.fileName).toMatch(/^\.env\.pull\.github\.production\.\d{8}T\d{6}Z$/);
     });
   });
 

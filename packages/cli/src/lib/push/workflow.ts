@@ -1,6 +1,7 @@
 import { parseEnvDocument, type EnvDiagnostic } from '@envolix/env-parser';
 import { stat, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { createProviderTarget } from '../provider/index.js';
 import type {
   Provider,
   ProviderTarget,
@@ -18,6 +19,7 @@ export interface PlanPushOptions {
   readonly cwd: string;
   readonly source: string;
   readonly provider: Provider;
+  readonly repo?: string;
   readonly environment?: string;
 }
 
@@ -69,10 +71,7 @@ export async function planPush(options: PlanPushOptions): Promise<PushPlan> {
     throw new PushWorkflowDiagnosticError(sourcePath, diagnostics);
   }
 
-  const target: ProviderTarget =
-    options.environment === undefined
-      ? Object.freeze({})
-      : Object.freeze({ environment: options.environment });
+  const target = createProviderTarget(options);
   const remoteEntries = await options.provider.listRemoteEntries(target);
   const remoteEntryKeys = new Set(remoteEntries.map(remoteEntryKey));
   const entries = document.nodes

@@ -11,7 +11,20 @@ export interface RemoteVariable {
 }
 
 export interface ProviderTarget {
+  readonly repo?: string;
   readonly environment?: string;
+}
+
+export interface ProviderTargetOptions {
+  readonly repo?: string;
+  readonly environment?: string;
+}
+
+export function createProviderTarget(options: ProviderTargetOptions): ProviderTarget {
+  return Object.freeze({
+    ...(options.repo === undefined ? {} : { repo: options.repo }),
+    ...(options.environment === undefined ? {} : { environment: options.environment }),
+  });
 }
 
 export interface PushPlanEntry {

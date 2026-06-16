@@ -1,15 +1,16 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
 import type { ProviderTarget, RemoteVariable } from './index.js';
-
-const execFileAsync = promisify(execFile);
 
 export interface GhRunResult {
   readonly stdout: string;
   readonly stderr: string;
 }
 
-export type GhRunner = (args: readonly string[]) => Promise<GhRunResult>;
+export interface GhRunOptions {
+  readonly stdin?: string;
+}
+
+export type GhRunner = (args: readonly string[], options?: GhRunOptions) => Promise<GhRunResult>;
 
 export class GhNotFoundError extends Error {
   constructor() {
@@ -59,24 +60,57 @@ export class GhAdapter {
   }
 
   async setSecret(key: string, value: string, target: ProviderTarget = {}): Promise<void> {
-    await this.run(withTarget(['secret', 'set', key, '--body', value], target), target);
+    await this.run(withTarget(['secret', 'set', key], target), target, { stdin: value });
   }
 
   async setVariable(key: string, value: string, target: ProviderTarget = {}): Promise<void> {
     await this.run(withTarget(['variable', 'set', key, '--body', value], target), target);
   }
 
-  private async run(args: readonly string[], target: ProviderTarget): Promise<GhRunResult> {
+  private async run(
+    args: readonly string[],
+    target: ProviderTarget,
+    options: GhRunOptions = {},
+  ): Promise<GhRunResult> {
     try {
-      return await this.runGh(args);
+      return await this.runGh(args, options);
     } catch (error) {
       throw translateGhError(error, target);
     }
   }
 }
 
-async function runGhCommand(args: readonly string[]): Promise<GhRunResult> {
-  return execFileAsync('gh', [...args]);
+async function runGhCommand(
+  args: readonly string[],
+  options: GhRunOptions = {},
+): Promise<GhRunResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('gh', [...args], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+
+    child.stdout.on('data', (chunk) => stdout.push(Buffer.from(chunk)));
+    child.stderr.on('data', (chunk) => stderr.push(Buffer.from(chunk)));
+    child.stdin.on('error', () => {
+      // The process may exit before consuming stdin after reporting its own error.
+    });
+    child.once('error', reject);
+    child.once('close', (exitCode, signal) => {
+      const result = {
+        stdout: Buffer.concat(stdout).toString('utf8'),
+        stderr: Buffer.concat(stderr).toString('utf8'),
+      };
+
+      if (exitCode === 0) {
+        resolve(result);
+        return;
+      }
+
+      reject(createGhProcessError(result.stderr, exitCode, signal));
+    });
+
+    child.stdin.end(options.stdin ?? '');
+  });
 }
 
 function parseGhNameList(stdout: string): readonly string[] {
@@ -122,7 +156,21 @@ function parseGhVariableList(stdout: string): readonly RemoteVariable[] {
 }
 
 function withTarget(args: readonly string[], target: ProviderTarget): readonly string[] {
-  return target.environment === undefined ? args : [...args, '--env', target.environment];
+  return [
+    ...args,
+    ...(target.repo === undefined ? [] : ['--repo', target.repo]),
+    ...(target.environment === undefined ? [] : ['--env', target.environment]),
+  ];
+}
+
+function createGhProcessError(
+  stderr: string,
+  exitCode: number | null,
+  signal: NodeJS.Signals | null,
+): Error {
+  const message =
+    signal === null ? `gh exited with code ${exitCode ?? 'unknown'}` : `gh exited with ${signal}`;
+  return Object.assign(new Error(message), { stderr, exitCode });
 }
 
 function translateGhError(error: unknown, target: ProviderTarget): Error {

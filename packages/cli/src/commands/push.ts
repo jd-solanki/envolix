@@ -16,6 +16,7 @@ import type { PushValidationDiagnostic } from '../lib/push/validation.js';
 interface PushOptions {
   readonly source: string;
   readonly provider: 'github';
+  readonly repo?: string;
   readonly environment?: string;
   readonly dryRun: boolean;
   readonly yes: boolean;
@@ -25,6 +26,7 @@ export const pushCommand = new Command('push')
   .description('Push source env values to a provider.')
   .option('-s, --source <path>', 'source env file', '.env')
   .requiredOption('-p, --provider <name>', 'provider to push to (github)', parseProvider)
+  .option('--repo <owner/name>', 'GitHub repository to push to')
   .option('-e, --environment <name>', 'GitHub Environment to push to')
   .option('--dry-run', 'print the plan without writing remote values', false)
   .option('-y, --yes', 'skip confirmation prompt', false)
@@ -35,6 +37,7 @@ export const pushCommand = new Command('push')
         cwd: process.cwd(),
         source: options.source,
         provider,
+        ...(options.repo === undefined ? {} : { repo: options.repo }),
         ...(options.environment === undefined ? {} : { environment: options.environment }),
       });
 
@@ -102,9 +105,11 @@ function printResult(result: PushResult): void {
 }
 
 function formatTarget(targeted: Pick<PushPlan, 'target'>): string {
-  return targeted.target.environment === undefined
-    ? 'GitHub Actions repository scope'
-    : `GitHub Environment: ${targeted.target.environment}`;
+  const scope =
+    targeted.target.environment === undefined
+      ? 'GitHub Actions repository scope'
+      : `GitHub Environment: ${targeted.target.environment}`;
+  return targeted.target.repo === undefined ? scope : `${scope} in ${targeted.target.repo}`;
 }
 
 function printError(error: unknown): void {

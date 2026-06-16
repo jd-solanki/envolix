@@ -149,6 +149,7 @@ describe('@envolix/cli', () => {
     expect(stdout).toContain('Usage: envolix push [options]');
     expect(stdout).toContain('-s, --source <path>');
     expect(stdout).toContain('-p, --provider <name>');
+    expect(stdout).toContain('--repo <owner/name>');
     expect(stdout).toContain('-e, --environment <name>');
     expect(stdout).toContain('--dry-run');
     expect(stdout).toContain('-y, --yes');
@@ -164,6 +165,7 @@ describe('@envolix/cli', () => {
     expect(stderr).toBe('');
     expect(stdout).toContain('Usage: envolix pull [options]');
     expect(stdout).toContain('-p, --provider <name>');
+    expect(stdout).toContain('--repo <owner/name>');
     expect(stdout).toContain('-e, --environment <name>');
     expect(missingProvider.stderr).toContain(
       "required option '-p, --provider <name>' not specified",
@@ -179,6 +181,8 @@ describe('@envolix/cli', () => {
         [
           '#!/usr/bin/env node',
           'const args = process.argv.slice(2);',
+          'const expectedRepo = args.at(-2) === "--repo" && args.at(-1) === "acme/app";',
+          'if (!expectedRepo) { console.error("missing repo flag"); process.exit(2); }',
           'if (args[0] === "secret" && args[1] === "list") console.log(JSON.stringify([{ name: "TOKEN" }]));',
           'else if (args[0] === "variable" && args[1] === "list") console.log(JSON.stringify([{ name: "PUBLIC_URL", value: "https://example.test" }]));',
           'else { console.error("unexpected command"); process.exit(2); }',
@@ -186,9 +190,13 @@ describe('@envolix/cli', () => {
       );
       await chmod(join(binDir, 'gh'), 0o755);
 
-      const { stdout, stderr } = await runCliWithEnv(['pull', '--provider', 'github'], cwd, {
-        PATH: `${binDir}:${process.env.PATH ?? ''}`,
-      });
+      const { stdout, stderr } = await runCliWithEnv(
+        ['pull', '--provider', 'github', '--repo', 'acme/app'],
+        cwd,
+        {
+          PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        },
+      );
       const pulledFiles = (await readdir(cwd)).filter((fileName) =>
         fileName.startsWith('.env.pull.github.repo.'),
       );
@@ -246,6 +254,55 @@ describe('@envolix/cli', () => {
     });
   });
 
+  it('pushes secret values to gh through stdin', async () => {
+    await withTempProject(async (cwd) => {
+      const binDir = join(cwd, 'bin');
+      await mkdir(binDir);
+      await writeFile(
+        join(binDir, 'gh'),
+        [
+          '#!/usr/bin/env node',
+          'const args = process.argv.slice(2);',
+          'if (args.includes("super-secret")) { console.error("secret leaked into argv"); process.exit(2); }',
+          'if (args[0] === "secret" && args[1] === "list") console.log(JSON.stringify([]));',
+          'else if (args[0] === "variable" && args[1] === "list") console.log(JSON.stringify([]));',
+          'else if (args[0] === "secret" && args[1] === "set" && args[2] === "TOKEN") {',
+          '  if (args.includes("--body")) { console.error("secret used --body"); process.exit(2); }',
+          '  let body = "";',
+          '  process.stdin.setEncoding("utf8");',
+          '  process.stdin.on("data", (chunk) => { body += chunk; });',
+          '  process.stdin.on("end", () => {',
+          '    if (body !== "super-secret") { console.error("missing stdin secret"); process.exit(2); }',
+          '  });',
+          '}',
+          'else if (args[0] === "variable" && args[1] === "set" && args[2] === "PUBLIC_URL") process.exit(0);',
+          'else { console.error("unexpected command"); process.exit(2); }',
+        ].join('\n'),
+      );
+      await chmod(join(binDir, 'gh'), 0o755);
+      await writeFile(
+        join(cwd, '.env'),
+        [
+          'TOKEN=super-secret #varType:secret',
+          'PUBLIC_URL=https://example.test #varType:plain',
+        ].join('\n'),
+      );
+
+      const { stdout, stderr } = await runCliWithEnv(
+        ['push', '--provider', 'github', '--yes'],
+        cwd,
+        {
+          PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        },
+      );
+
+      expect(stderr).toBe('');
+      expect(stdout).toContain('TOKEN');
+      expect(stdout).toContain('success');
+      expect(stdout).toContain('PUBLIC_URL');
+    });
+  });
+
   it('prints an environment-scoped push dry-run plan', async () => {
     await withTempProject(async (cwd) => {
       const binDir = join(cwd, 'bin');
@@ -255,7 +312,9 @@ describe('@envolix/cli', () => {
         [
           '#!/usr/bin/env node',
           'const args = process.argv.slice(2);',
+          'const expectedRepo = args.at(-4) === "--repo" && args.at(-3) === "acme/app";',
           'const expectedEnv = args.at(-2) === "--env" && args.at(-1) === "production";',
+          'if (!expectedRepo) { console.error("missing repo flag"); process.exit(2); }',
           'if (!expectedEnv) { console.error("missing environment flag"); process.exit(2); }',
           'if (args[0] === "secret" && args[1] === "list") console.log(JSON.stringify([]));',
           'else if (args[0] === "variable" && args[1] === "list") console.log(JSON.stringify([{ name: "PUBLIC_URL", value: "https://example.test" }]));',
@@ -271,7 +330,16 @@ describe('@envolix/cli', () => {
       );
 
       const { stdout, stderr } = await runCliWithEnv(
-        ['push', '--provider', 'github', '--environment', 'production', '--dry-run'],
+        [
+          'push',
+          '--provider',
+          'github',
+          '--repo',
+          'acme/app',
+          '--environment',
+          'production',
+          '--dry-run',
+        ],
         cwd,
         {
           PATH: `${binDir}:${process.env.PATH ?? ''}`,

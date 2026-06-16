@@ -6,12 +6,14 @@ import { PullWorkflowError, executePull, planPull, type PullResult } from '../li
 
 interface PullOptions {
   readonly provider: 'github';
+  readonly repo?: string;
   readonly environment?: string;
 }
 
 export const pullCommand = new Command('pull')
   .description('Pull provider env values into a new local env file.')
   .requiredOption('-p, --provider <name>', 'provider to pull from (github)', parseProvider)
+  .option('--repo <owner/name>', 'GitHub repository to pull from')
   .option('-e, --environment <name>', 'GitHub Environment to pull from')
   .action(async (options: PullOptions) => {
     try {
@@ -20,6 +22,7 @@ export const pullCommand = new Command('pull')
         cwd: process.cwd(),
         providerName: options.provider,
         provider,
+        ...(options.repo === undefined ? {} : { repo: options.repo }),
         ...(options.environment === undefined ? {} : { environment: options.environment }),
       });
       const result = await executePull(plan);
@@ -63,9 +66,11 @@ function printResult(result: PullResult): void {
 }
 
 function formatTarget(targeted: Pick<PullResult, 'target'>): string {
-  return targeted.target.environment === undefined
-    ? 'GitHub Actions repository scope'
-    : `GitHub Environment ${targeted.target.environment}`;
+  const scope =
+    targeted.target.environment === undefined
+      ? 'GitHub Actions repository scope'
+      : `GitHub Environment ${targeted.target.environment}`;
+  return targeted.target.repo === undefined ? scope : `${scope} in ${targeted.target.repo}`;
 }
 
 function printError(error: unknown): void {
