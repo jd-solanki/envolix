@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vite-plus/test';
 
 import { execFile } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -18,6 +18,17 @@ async function runCli(args: readonly string[], cwd: string) {
     cwd,
     env: {
       ...colorEnabledEnv,
+      FORCE_COLOR: '1',
+    },
+  });
+}
+
+async function runCliWithEnv(args: readonly string[], cwd: string, env: NodeJS.ProcessEnv) {
+  return execFileAsync(process.execPath, [binPath, ...args], {
+    cwd,
+    env: {
+      ...colorEnabledEnv,
+      ...env,
       FORCE_COLOR: '1',
     },
   });
@@ -73,6 +84,8 @@ describe('@envolix/cli', () => {
     expect(stdout).toContain('Usage: envolix [options] [command]');
     expect(stdout).toContain('Generate safe example env files');
     expect(stdout).toContain('gen');
+    expect(stdout).toContain('push');
+    expect(stdout).toContain('pull');
     expect(stdout).toContain('Generate an example env file');
     expect(dirname(packageBinPath ?? '')).toBe('./dist');
   });
@@ -126,6 +139,244 @@ describe('@envolix/cli', () => {
     expect(stdout).toContain('-t, --target <path>');
     expect(stdout).toContain('(default: ".env")');
     expect(stdout).toContain('(default: ".env.example")');
+  });
+
+  it('documents push options and requires an explicit provider', async () => {
+    const { stdout, stderr } = await runCli(['push', '--help'], packageRoot);
+    const missingProvider = await runCliFailure(['push', '--dry-run'], packageRoot);
+
+    expect(stderr).toBe('');
+    expect(stdout).toContain('Usage: envolix push [options]');
+    expect(stdout).toContain('-s, --source <path>');
+    expect(stdout).toContain('-p, --provider <name>');
+    expect(stdout).toContain('--repo <owner/name>');
+    expect(stdout).toContain('-e, --environment <name>');
+    expect(stdout).toContain('--dry-run');
+    expect(stdout).toContain('-y, --yes');
+    expect(missingProvider.stderr).toContain(
+      "required option '-p, --provider <name>' not specified",
+    );
+  });
+
+  it('documents pull options and requires an explicit provider', async () => {
+    const { stdout, stderr } = await runCli(['pull', '--help'], packageRoot);
+    const missingProvider = await runCliFailure(['pull'], packageRoot);
+
+    expect(stderr).toBe('');
+    expect(stdout).toContain('Usage: envolix pull [options]');
+    expect(stdout).toContain('-p, --provider <name>');
+    expect(stdout).toContain('--repo <owner/name>');
+    expect(stdout).toContain('-e, --environment <name>');
+    expect(missingProvider.stderr).toContain(
+      "required option '-p, --provider <name>' not specified",
+    );
+  });
+
+  it('pulls variables and lists blank secrets with a fake GitHub CLI', async () => {
+    await withTempProject(async (cwd) => {
+      const binDir = join(cwd, 'bin');
+      await mkdir(binDir);
+      await writeFile(
+        join(binDir, 'gh'),
+        [
+          '#!/usr/bin/env node',
+          'const args = process.argv.slice(2);',
+          'const expectedRepo = args.at(-2) === "--repo" && args.at(-1) === "acme/app";',
+          'if (!expectedRepo) { console.error("missing repo flag"); process.exit(2); }',
+          'if (args[0] === "secret" && args[1] === "list") console.log(JSON.stringify([{ name: "TOKEN" }]));',
+          'else if (args[0] === "variable" && args[1] === "list") console.log(JSON.stringify([{ name: "PUBLIC_URL", value: "https://example.test" }]));',
+          'else { console.error("unexpected command"); process.exit(2); }',
+        ].join('\n'),
+      );
+      await chmod(join(binDir, 'gh'), 0o755);
+
+      const { stdout, stderr } = await runCliWithEnv(
+        ['pull', '--provider', 'github', '--repo', 'acme/app'],
+        cwd,
+        {
+          PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        },
+      );
+      const pulledFiles = (await readdir(cwd)).filter((fileName) =>
+        fileName.startsWith('.env.pull.github.repo.'),
+      );
+
+      expect(pulledFiles).toHaveLength(1);
+      await expect(readFile(join(cwd, pulledFiles[0] ?? ''), 'utf8')).resolves.toBe(
+        ['TOKEN= #varType:secret', 'PUBLIC_URL=https://example.test', ''].join('\n'),
+      );
+      expect(stdout).toContain('Pulled GitHub Actions repository scope');
+      expect(stdout).toContain('Blank remote secrets:');
+      expect(stdout).toContain('TOKEN');
+      expect(stderr).toContain('is not gitignored');
+    });
+  });
+
+  it('prints a push dry-run plan without writing remote values', async () => {
+    await withTempProject(async (cwd) => {
+      const binDir = join(cwd, 'bin');
+      await mkdir(binDir);
+      await writeFile(
+        join(binDir, 'gh'),
+        [
+          '#!/usr/bin/env node',
+          'const args = process.argv.slice(2);',
+          'if (args[0] === "secret" && args[1] === "list") console.log(JSON.stringify([{ name: "TOKEN" }]));',
+          'else if (args[0] === "variable" && args[1] === "list") console.log(JSON.stringify([]));',
+          'else { console.error("unexpected write"); process.exit(2); }',
+        ].join('\n'),
+      );
+      await chmod(join(binDir, 'gh'), 0o755);
+      await writeFile(
+        join(cwd, '.env'),
+        ['TOKEN=secret #varType:secret', 'PUBLIC_URL=https://example.test #varType:plain'].join(
+          '\n',
+        ),
+      );
+
+      const { stdout, stderr } = await runCliWithEnv(
+        ['push', '--provider', 'github', '--dry-run'],
+        cwd,
+        {
+          PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        },
+      );
+
+      expect(stderr).toBe('');
+      expect(stdout).toContain('Push plan:');
+      expect(stdout).toContain('TOKEN');
+      expect(stdout).toContain('update');
+      expect(stdout).toContain('secret');
+      expect(stdout).toContain('PUBLIC_URL');
+      expect(stdout).toContain('create');
+      expect(stdout).toContain('variable');
+      expect(stdout).toContain('Dry run: no remote values were changed.');
+    });
+  });
+
+  it('pushes secret values to gh through stdin', async () => {
+    await withTempProject(async (cwd) => {
+      const binDir = join(cwd, 'bin');
+      await mkdir(binDir);
+      await writeFile(
+        join(binDir, 'gh'),
+        [
+          '#!/usr/bin/env node',
+          'const args = process.argv.slice(2);',
+          'if (args.includes("super-secret")) { console.error("secret leaked into argv"); process.exit(2); }',
+          'if (args[0] === "secret" && args[1] === "list") console.log(JSON.stringify([]));',
+          'else if (args[0] === "variable" && args[1] === "list") console.log(JSON.stringify([]));',
+          'else if (args[0] === "secret" && args[1] === "set" && args[2] === "TOKEN") {',
+          '  if (args.includes("--body")) { console.error("secret used --body"); process.exit(2); }',
+          '  let body = "";',
+          '  process.stdin.setEncoding("utf8");',
+          '  process.stdin.on("data", (chunk) => { body += chunk; });',
+          '  process.stdin.on("end", () => {',
+          '    if (body !== "super-secret") { console.error("missing stdin secret"); process.exit(2); }',
+          '  });',
+          '}',
+          'else if (args[0] === "variable" && args[1] === "set" && args[2] === "PUBLIC_URL") process.exit(0);',
+          'else { console.error("unexpected command"); process.exit(2); }',
+        ].join('\n'),
+      );
+      await chmod(join(binDir, 'gh'), 0o755);
+      await writeFile(
+        join(cwd, '.env'),
+        [
+          'TOKEN=super-secret #varType:secret',
+          'PUBLIC_URL=https://example.test #varType:plain',
+        ].join('\n'),
+      );
+
+      const { stdout, stderr } = await runCliWithEnv(
+        ['push', '--provider', 'github', '--yes'],
+        cwd,
+        {
+          PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        },
+      );
+
+      expect(stderr).toBe('');
+      expect(stdout).toContain('TOKEN');
+      expect(stdout).toContain('success');
+      expect(stdout).toContain('PUBLIC_URL');
+    });
+  });
+
+  it('prints an environment-scoped push dry-run plan', async () => {
+    await withTempProject(async (cwd) => {
+      const binDir = join(cwd, 'bin');
+      await mkdir(binDir);
+      await writeFile(
+        join(binDir, 'gh'),
+        [
+          '#!/usr/bin/env node',
+          'const args = process.argv.slice(2);',
+          'const expectedRepo = args.at(-4) === "--repo" && args.at(-3) === "acme/app";',
+          'const expectedEnv = args.at(-2) === "--env" && args.at(-1) === "production";',
+          'if (!expectedRepo) { console.error("missing repo flag"); process.exit(2); }',
+          'if (!expectedEnv) { console.error("missing environment flag"); process.exit(2); }',
+          'if (args[0] === "secret" && args[1] === "list") console.log(JSON.stringify([]));',
+          'else if (args[0] === "variable" && args[1] === "list") console.log(JSON.stringify([{ name: "PUBLIC_URL", value: "https://example.test" }]));',
+          'else { console.error("unexpected write"); process.exit(2); }',
+        ].join('\n'),
+      );
+      await chmod(join(binDir, 'gh'), 0o755);
+      await writeFile(
+        join(cwd, '.env'),
+        ['TOKEN=secret #varType:secret', 'PUBLIC_URL=https://example.test #varType:plain'].join(
+          '\n',
+        ),
+      );
+
+      const { stdout, stderr } = await runCliWithEnv(
+        [
+          'push',
+          '--provider',
+          'github',
+          '--repo',
+          'acme/app',
+          '--environment',
+          'production',
+          '--dry-run',
+        ],
+        cwd,
+        {
+          PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        },
+      );
+
+      expect(stderr).toBe('');
+      expect(stdout).toContain('GitHub Environment: production');
+      expect(stdout).toContain('TOKEN');
+      expect(stdout).toContain('create');
+      expect(stdout).toContain('PUBLIC_URL');
+      expect(stdout).toContain('update');
+    });
+  });
+
+  it('refuses push validation failures before calling gh', async () => {
+    await withTempProject(async (cwd) => {
+      const binDir = join(cwd, 'bin');
+      await mkdir(binDir);
+      await writeFile(
+        join(binDir, 'gh'),
+        [
+          '#!/usr/bin/env node',
+          'console.error("gh should not be called");',
+          'process.exit(9);',
+        ].join('\n'),
+      );
+      await chmod(join(binDir, 'gh'), 0o755);
+      await writeFile(join(cwd, '.env'), 'TOKEN=secret\n');
+
+      const result = await runCliFailure(['push', '--provider', 'github', '--dry-run'], cwd);
+
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toContain('MissingVarTypeAnnotation');
+      expect(result.stderr).toContain(`${join(cwd, '.env')}:1`);
+      expect(result.stderr).not.toContain('gh should not be called');
+    });
   });
 
   it('generates .env.example from .env by default', async () => {

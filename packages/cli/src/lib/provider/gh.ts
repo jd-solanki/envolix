@@ -1,0 +1,220 @@
+import { spawn } from 'node:child_process';
+import type { ProviderTarget, RemoteVariable } from './index.js';
+
+export interface GhRunResult {
+  readonly stdout: string;
+  readonly stderr: string;
+}
+
+export interface GhRunOptions {
+  readonly stdin?: string;
+}
+
+export type GhRunner = (args: readonly string[], options?: GhRunOptions) => Promise<GhRunResult>;
+
+export class GhNotFoundError extends Error {
+  constructor() {
+    super('GitHub CLI `gh` is not installed or is not available on PATH.');
+    this.name = 'GhNotFoundError';
+  }
+}
+
+export class GhNotAuthenticatedError extends Error {
+  constructor() {
+    super('GitHub CLI `gh` is not authenticated. Run `gh auth login` and try again.');
+    this.name = 'GhNotAuthenticatedError';
+  }
+}
+
+export class GhCommandError extends Error {
+  constructor(
+    message: string,
+    readonly stderr: string,
+  ) {
+    super(message);
+    this.name = 'GhCommandError';
+  }
+}
+
+export class GhEnvironmentNotFoundError extends Error {
+  constructor(readonly environment: string) {
+    super(`GitHub Environment "${environment}" does not exist.`);
+    this.name = 'GhEnvironmentNotFoundError';
+  }
+}
+
+export class GhAdapter {
+  constructor(private readonly runGh: GhRunner = runGhCommand) {}
+
+  async listSecrets(target: ProviderTarget = {}): Promise<readonly string[]> {
+    const result = await this.run(withTarget(['secret', 'list', '--json', 'name'], target), target);
+    return parseGhNameList(result.stdout);
+  }
+
+  async listVariables(target: ProviderTarget = {}): Promise<readonly RemoteVariable[]> {
+    const result = await this.run(
+      withTarget(['variable', 'list', '--json', 'name,value'], target),
+      target,
+    );
+    return parseGhVariableList(result.stdout);
+  }
+
+  async setSecret(key: string, value: string, target: ProviderTarget = {}): Promise<void> {
+    await this.run(withTarget(['secret', 'set', key], target), target, { stdin: value });
+  }
+
+  async setVariable(key: string, value: string, target: ProviderTarget = {}): Promise<void> {
+    await this.run(withTarget(['variable', 'set', key, '--body', value], target), target);
+  }
+
+  private async run(
+    args: readonly string[],
+    target: ProviderTarget,
+    options: GhRunOptions = {},
+  ): Promise<GhRunResult> {
+    try {
+      return await this.runGh(args, options);
+    } catch (error) {
+      throw translateGhError(error, target);
+    }
+  }
+}
+
+async function runGhCommand(
+  args: readonly string[],
+  options: GhRunOptions = {},
+): Promise<GhRunResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('gh', [...args], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+
+    child.stdout.on('data', (chunk) => stdout.push(Buffer.from(chunk)));
+    child.stderr.on('data', (chunk) => stderr.push(Buffer.from(chunk)));
+    child.stdin.on('error', () => {
+      // The process may exit before consuming stdin after reporting its own error.
+    });
+    child.once('error', reject);
+    child.once('close', (exitCode, signal) => {
+      const result = {
+        stdout: Buffer.concat(stdout).toString('utf8'),
+        stderr: Buffer.concat(stderr).toString('utf8'),
+      };
+
+      if (exitCode === 0) {
+        resolve(result);
+        return;
+      }
+
+      reject(createGhProcessError(result.stderr, exitCode, signal));
+    });
+
+    child.stdin.end(options.stdin ?? '');
+  });
+}
+
+function parseGhNameList(stdout: string): readonly string[] {
+  const parsed = JSON.parse(stdout === '' ? '[]' : stdout) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new GhCommandError('GitHub CLI returned an unexpected response.', stdout);
+  }
+
+  return Object.freeze(
+    parsed
+      .map((entry) =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        'name' in entry &&
+        typeof entry.name === 'string'
+          ? entry.name
+          : undefined,
+      )
+      .filter((name): name is string => name !== undefined),
+  );
+}
+
+function parseGhVariableList(stdout: string): readonly RemoteVariable[] {
+  const parsed = JSON.parse(stdout === '' ? '[]' : stdout) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new GhCommandError('GitHub CLI returned an unexpected response.', stdout);
+  }
+
+  return Object.freeze(
+    parsed
+      .map((entry) =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        'name' in entry &&
+        'value' in entry &&
+        typeof entry.name === 'string' &&
+        typeof entry.value === 'string'
+          ? { key: entry.name, value: entry.value }
+          : undefined,
+      )
+      .filter((variable): variable is RemoteVariable => variable !== undefined),
+  );
+}
+
+function withTarget(args: readonly string[], target: ProviderTarget): readonly string[] {
+  return [
+    ...args,
+    ...(target.repo === undefined ? [] : ['--repo', target.repo]),
+    ...(target.environment === undefined ? [] : ['--env', target.environment]),
+  ];
+}
+
+function createGhProcessError(
+  stderr: string,
+  exitCode: number | null,
+  signal: NodeJS.Signals | null,
+): Error {
+  const message =
+    signal === null ? `gh exited with code ${exitCode ?? 'unknown'}` : `gh exited with ${signal}`;
+  return Object.assign(new Error(message), { stderr, exitCode });
+}
+
+function translateGhError(error: unknown, target: ProviderTarget): Error {
+  if (isNodeError(error) && error.code === 'ENOENT') {
+    return new GhNotFoundError();
+  }
+
+  const stderr = getStderr(error);
+  if (target.environment !== undefined && isEnvironmentNotFound(stderr, target.environment)) {
+    return new GhEnvironmentNotFoundError(target.environment);
+  }
+
+  if (isAuthenticationFailure(stderr)) {
+    return new GhNotAuthenticatedError();
+  }
+
+  const message = stderr.trim() === '' ? getErrorMessage(error) : stderr.trim();
+  return new GhCommandError(`GitHub CLI command failed: ${message}`, stderr);
+}
+
+function isAuthenticationFailure(stderr: string): boolean {
+  return /gh auth login|not logged in|authentication required|could not authenticate/i.test(stderr);
+}
+
+function isEnvironmentNotFound(stderr: string, environment: string): boolean {
+  return (
+    /HTTP 404|not found/i.test(stderr) &&
+    stderr.toLowerCase().includes(`/environments/${environment.toLowerCase()}`)
+  );
+}
+
+function getStderr(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'stderr' in error) {
+    const stderr = (error as { readonly stderr?: unknown }).stderr;
+    return typeof stderr === 'string' ? stderr : '';
+  }
+
+  return '';
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
+}
