@@ -26,6 +26,27 @@ tests/                    # Mirrors src/ structure, one test file per module
 - `commands/` — each file exports a single `Command` instance; all CLI concerns (prompts, flags, output) live here
 - `lib/` — framework-agnostic helpers imported by commands; keep them testable in isolation
 
+### Grouping `lib/` by feature
+
+Keep `lib/` flat by default. Group files into a feature folder **only once that feature owns 2+ files** — a single-file feature stays flat (`lib/linker.ts`), since a folder holding one file is just noise.
+
+When you do group, the folder already names the feature, so drop the redundant prefix from filenames (`lib/push/workflow.ts`, not `lib/push/push-workflow.ts`). Use `dir/index.ts` as the feature's public surface — a barrel that re-exports what commands import, or, for a provider-style seam, the interface/contract itself:
+
+```
+src/lib/
+├── linker.ts             # single-file feature → stays flat
+├── push/                 # 2+ files → grouped, prefix dropped
+│   ├── index.ts          # barrel: re-exports the feature's public surface
+│   ├── workflow.ts
+│   └── validation.ts
+└── provider/             # the seam: index.ts IS the contract
+    ├── index.ts          # Provider interface + shared types
+    ├── github.ts         # implementation
+    └── gh.ts             # adapter wrapping the external CLI
+```
+
+Commands import the folder, not its internals: `import { planPush } from '../lib/push/index.js'`. This keeps each feature's internal file split free to change without touching call sites.
+
 ## Entry point structure
 
 ```ts
