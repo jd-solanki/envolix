@@ -11,6 +11,30 @@ describe('renderTable', () => {
     expect(renderTable(['Key', 'Status'], [])).toBe('');
   });
 
+  it('uppercases the column headers regardless of input casing', () => {
+    const table = renderTable(['key', 'Status'], [['A', 'ok']]);
+    const headerLine = stripAnsi(table).split('\n')[0] ?? '';
+
+    expect(headerLine).toContain('KEY');
+    expect(headerLine).toContain('STATUS');
+  });
+
+  it('aligns every column across rows for a multi-column table', () => {
+    const table = renderTable(
+      ['Key', 'Action', 'Kind'],
+      [
+        ['SHORT', 'create', 'secret'],
+        ['A_MUCH_LONGER_KEY', 'update', 'variable'],
+      ],
+    );
+    const lines = stripAnsi(table).split('\n');
+
+    // Both the action and the kind columns start at the same offset on every
+    // data row despite the differing key widths.
+    expect(lines[1]?.indexOf('create')).toBe(lines[2]?.indexOf('update'));
+    expect(lines[1]?.indexOf('secret')).toBe(lines[2]?.indexOf('variable'));
+  });
+
   it('keeps columns aligned and preserves cell color across differing widths', () => {
     const green = (value: string): string => `[32m${value}[39m`;
     const table = renderTable(

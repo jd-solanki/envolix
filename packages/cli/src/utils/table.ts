@@ -23,13 +23,16 @@ const BORDERLESS_CHARS = {
 // separated by whitespace, with a dim underlined header row. Data cell coloring is the
 // caller's responsibility; this helper owns only the structural header styling.
 // Returns an empty string when there are no rows so callers never emit a header-only table.
-export function renderTable(head: readonly string[], rows: readonly (readonly string[])[]): string {
+export function renderTable(
+  headers: readonly string[],
+  rows: readonly (readonly string[])[],
+): string {
   if (rows.length === 0) {
     return '';
   }
 
   const table = new Table({
-    head: head.map((title) => pc.dim(pc.underline(title.toUpperCase()))),
+    head: headers.map((title) => pc.dim(pc.underline(title.toUpperCase()))),
     chars: { ...BORDERLESS_CHARS },
     style: {
       head: [],
