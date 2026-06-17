@@ -97,8 +97,10 @@ function printPlan(providerName: ProviderName, plan: PushPlan): void {
   }
 
   const rows = plan.entries.map((entry) => [entry.key, colorAction(entry.action), entry.kind]);
+  // Blank lines isolate the table from the target line above and the confirm prompt below.
   console.log();
   console.log(indent(renderTable(['Key', 'Action', 'Kind'], rows)));
+  console.log();
 }
 
 function printResult(providerName: ProviderName, result: PushResult): void {
@@ -108,8 +110,10 @@ function printResult(providerName: ProviderName, result: PushResult): void {
   const rows = result.entries.map((entry) => [entry.key, colorStatus(entry.status)]);
   const table = renderTable(['Key', 'Status'], rows);
   if (table.length > 0) {
+    // Blank lines isolate the table from the target line above and whatever follows (errors / next output).
     console.log();
     console.log(indent(table));
+    console.log();
   }
 
   printErrors(result.entries);
@@ -121,7 +125,6 @@ function printErrors(entries: PushResult['entries']): void {
     return;
   }
 
-  console.log();
   console.log('Errors:');
   for (const { key, message } of rows) {
     console.log(`  ${key}  ${pc.dim(message)}`);
