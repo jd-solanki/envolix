@@ -6,7 +6,7 @@ import {
   GhEnvironmentNotFoundError,
   GhNotAuthenticatedError,
   GhNotFoundError,
-} from '../../src/lib/provider/gh.js';
+} from '../../src/lib/provider/gh';
 
 describe('gh adapter', () => {
   it('builds repo-level gh argv for listing and setting Actions secrets and variables', async () => {

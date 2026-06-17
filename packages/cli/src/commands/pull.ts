@@ -1,18 +1,27 @@
 import { Command, InvalidArgumentError } from 'commander';
 import pc from 'picocolors';
-import { GitHubProvider } from '../lib/provider/github.js';
-import type { Provider } from '../lib/provider/index.js';
-import { PullWorkflowError, executePull, planPull, type PullResult } from '../lib/pull/index.js';
+import {
+  createProvider,
+  formatProviderTarget,
+  formatSupportedProviderNames,
+  parseProviderName,
+  type ProviderName,
+} from '../lib/provider/catalog';
+import { PulledEnvFileError, executePull, planPull, type PullResult } from '../lib/pull/index';
 
 interface PullOptions {
-  readonly provider: 'github';
+  readonly provider: ProviderName;
   readonly repo?: string;
   readonly environment?: string;
 }
 
 export const pullCommand = new Command('pull')
   .description('Pull provider env values into a new local env file.')
-  .requiredOption('-p, --provider <name>', 'provider to pull from (github)', parseProvider)
+  .requiredOption(
+    '-p, --provider <name>',
+    `provider to pull from (${formatSupportedProviderNames()})`,
+    parseProvider,
+  )
   .option('--repo <owner/name>', 'GitHub repository to pull from')
   .option('-e, --environment <name>', 'GitHub Environment to pull from')
   .action(async (options: PullOptions) => {
@@ -26,7 +35,7 @@ export const pullCommand = new Command('pull')
         ...(options.environment === undefined ? {} : { environment: options.environment }),
       });
       const result = await executePull(plan);
-      printResult(result);
+      printResult(options.provider, result);
     } catch (error) {
       printError(error);
       process.exitCode = 1;
@@ -34,22 +43,20 @@ export const pullCommand = new Command('pull')
   });
 
 function parseProvider(value: string): PullOptions['provider'] {
-  if (value === 'github') {
-    return value;
+  const providerName = parseProviderName(value);
+  if (providerName !== undefined) {
+    return providerName;
   }
 
-  throw new InvalidArgumentError(`Unsupported provider "${value}". Supported providers: github.`);
+  throw new InvalidArgumentError(
+    `Unsupported provider "${value}". Supported providers: ${formatSupportedProviderNames()}.`,
+  );
 }
 
-function createProvider(provider: PullOptions['provider']): Provider {
-  switch (provider) {
-    case 'github':
-      return new GitHubProvider();
-  }
-}
-
-function printResult(result: PullResult): void {
-  console.log(pc.green(`Pulled ${formatTarget(result)} to ${result.fileName}`));
+function printResult(providerName: ProviderName, result: PullResult): void {
+  console.log(
+    pc.green(`Pulled ${formatProviderTarget(providerName, result)} to ${result.fileName}`),
+  );
 
   if (result.blankSecretKeys.length > 0) {
     console.log('Blank remote secrets:');
@@ -65,16 +72,8 @@ function printResult(result: PullResult): void {
   }
 }
 
-function formatTarget(targeted: Pick<PullResult, 'target'>): string {
-  const scope =
-    targeted.target.environment === undefined
-      ? 'GitHub Actions repository scope'
-      : `GitHub Environment ${targeted.target.environment}`;
-  return targeted.target.repo === undefined ? scope : `${scope} in ${targeted.target.repo}`;
-}
-
 function printError(error: unknown): void {
-  if (error instanceof PullWorkflowError) {
+  if (error instanceof PulledEnvFileError) {
     console.error(pc.red('Error: ') + error.message);
     for (const detail of error.details) {
       console.error(pc.dim(detail));

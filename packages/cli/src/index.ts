@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import packageJson from '../package.json' with { type: 'json' };
-import { genCommand } from './commands/gen.js';
-import { pullCommand } from './commands/pull.js';
-import { pushCommand } from './commands/push.js';
+import { genCommand } from './commands/gen';
+import { pullCommand } from './commands/pull';
+import { pushCommand } from './commands/push';
 
 const program = new Command('envolix')
   .description('Generate safe example env files and sync env values to providers.')

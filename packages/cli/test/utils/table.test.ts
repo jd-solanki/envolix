@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test';
 
-import { renderTable } from '../../src/utils/table.js';
+import { renderTable } from '../../src/utils/table';
 
 // Colored cells carry ANSI escape codes; strip them so assertions reason about
 // the visible text the user actually sees rather than the raw control bytes.

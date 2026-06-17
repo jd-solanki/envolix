@@ -1,13 +1,14 @@
-import { parseEnvDocument, type EnvDiagnostic } from '@envolix/env-parser';
+import type { EnvDiagnostic } from '@envolix/env-parser';
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { readSourceEnvFile } from './source-env-file';
 import {
   renderTargetEnvDocument,
   validateEnvDocumentForTargetGeneration,
   type TargetGenerationDiagnostic,
-} from './target-generation.js';
+} from './target-generation';
 
 export interface GenWorkflowOptions {
   readonly cwd: string;
@@ -45,10 +46,7 @@ export async function runGenWorkflow(options: GenWorkflowOptions): Promise<void>
     ]);
   }
 
-  const sourceStat = await statPath(sourcePath, 'source');
-  if (sourceStat.isDirectory()) {
-    throw new GenWorkflowError('Source path must be a file, not a directory.', [sourcePath]);
-  }
+  const sourceEnvFile = await readSourceEnvFile({ cwd: options.cwd, source: options.source });
 
   const targetStat = await statOptional(targetPath);
   if (targetStat?.isDirectory() === true) {
@@ -57,8 +55,8 @@ export async function runGenWorkflow(options: GenWorkflowOptions): Promise<void>
 
   if (
     targetStat !== undefined &&
-    sourceStat.dev === targetStat.dev &&
-    sourceStat.ino === targetStat.ino
+    sourceEnvFile.stats.dev === targetStat.dev &&
+    sourceEnvFile.stats.ino === targetStat.ino
   ) {
     throw new GenWorkflowError('Source and target paths must be different.', [
       `Both paths refer to ${sourcePath}`,
@@ -71,14 +69,12 @@ export async function runGenWorkflow(options: GenWorkflowOptions): Promise<void>
     throw new GenWorkflowError('Target parent path must be a directory.', [targetParent]);
   }
 
-  const source = await readFile(sourcePath, 'utf8');
-  const document = parseEnvDocument(source);
-  const diagnostics = validateEnvDocumentForTargetGeneration(document);
+  const diagnostics = validateEnvDocumentForTargetGeneration(sourceEnvFile.document);
   if (diagnostics.length > 0) {
-    throw new GenWorkflowDiagnosticError(sourcePath, diagnostics);
+    throw new GenWorkflowDiagnosticError(sourceEnvFile.path, diagnostics);
   }
 
-  const output = renderTargetEnvDocument(document);
+  const output = renderTargetEnvDocument(sourceEnvFile.document);
   await writeFileAtomically(targetPath, output);
 }
 

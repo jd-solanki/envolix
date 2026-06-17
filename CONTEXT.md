@@ -8,6 +8,10 @@ Envolix helps teams derive shareable example env files from private env files wh
 The env file whose keys, ordering, comments, blank lines, and formatting are treated as authoritative for generation.
 _Avoid_: Input env, original env
 
+**Source env file intake**:
+The CLI-owned module that resolves a Source env file path, verifies it is readable as a file, reads it, and parses it into an env document for downstream workflows.
+_Avoid_: Source loading, Input parsing
+
 **Target env file**:
 The example env file produced from a source env file. It is safe to share because generated values are blank.
 _Avoid_: Output env, destination env
@@ -91,6 +95,10 @@ _Avoid_: CLI package, executable package
 **Provider**:
 An external service that stores env config remotely, such as GitHub, Vercel, or Cloudflare. A provider owns environments and the remote entries within them.
 _Avoid_: Target, Platform, Remote, Destination
+
+**Provider catalog**:
+The CLI-owned module that maps supported provider names to provider adapters and provider-specific target labels. Commands ask the Provider catalog for provider behavior instead of constructing adapters directly.
+_Avoid_: Provider switch, Provider registry
 
 **Environment**:
 A named deployment scope on a provider that groups remote entries, such as production, staging, or preview. The unabbreviated word is reserved for this remote scope; the local file world always uses the `env` prefix (env file, env document, env entry).

@@ -1,5 +1,5 @@
-import type { Provider, ProviderTarget, RemoteEntry, RemoteVariable } from './index.js';
-import { GhAdapter } from './gh.js';
+import type { Provider, ProviderTarget, RemoteEntry, RemoteVariable } from './index';
+import { GhAdapter } from './gh';
 
 export class GitHubProvider implements Provider {
   constructor(private readonly gh = new GhAdapter()) {}

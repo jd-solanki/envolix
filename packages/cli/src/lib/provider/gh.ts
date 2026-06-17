@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import type { ProviderTarget, RemoteVariable } from './index.js';
+import type { ProviderTarget, RemoteVariable } from './index';
 
 export interface GhRunResult {
   readonly stdout: string;

@@ -1,2 +1,2 @@
-export * from './validation.js';
-export * from './workflow.js';
+export * from './validation';
+export * from './workflow';

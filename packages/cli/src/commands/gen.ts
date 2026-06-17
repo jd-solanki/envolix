@@ -1,12 +1,9 @@
 import type { EnvDiagnostic } from '@envolix/env-parser';
 import { Command } from 'commander';
 import pc from 'picocolors';
-import {
-  GenWorkflowDiagnosticError,
-  GenWorkflowError,
-  runGenWorkflow,
-} from '../lib/gen-workflow.js';
-import type { TargetGenerationDiagnostic } from '../lib/target-generation.js';
+import { GenWorkflowDiagnosticError, GenWorkflowError, runGenWorkflow } from '../lib/gen-workflow';
+import { SourceEnvFileError } from '../lib/source-env-file';
+import type { TargetGenerationDiagnostic } from '../lib/target-generation';
 
 interface GenOptions {
   readonly source: string;
@@ -41,6 +38,14 @@ function printError(error: unknown): void {
   }
 
   if (error instanceof GenWorkflowError) {
+    console.error(pc.red('Error: ') + error.message);
+    for (const detail of error.details) {
+      console.error(pc.dim(detail));
+    }
+    return;
+  }
+
+  if (error instanceof SourceEnvFileError) {
     console.error(pc.red('Error: ') + error.message);
     for (const detail of error.details) {
       console.error(pc.dim(detail));
