@@ -15,9 +15,11 @@ import {
   executePush,
   planPush,
   type PushResult,
+  type PushResultEntry,
 } from '../lib/push/workflow';
 import { SourceEnvFileError } from '../lib/source-env-file';
 import type { PushValidationDiagnostic } from '../lib/push/validation';
+import { renderTable } from '../utils/table';
 
 interface PushOptions {
   readonly source: string;
@@ -94,20 +96,78 @@ function printPlan(providerName: ProviderName, plan: PushPlan): void {
     return;
   }
 
-  for (const entry of plan.entries) {
-    console.log(`  ${entry.key} ${pc.dim(entry.action)} ${entry.kind}`);
-  }
+  const rows = plan.entries.map((entry) => [entry.key, colorAction(entry.action), entry.kind]);
+  console.log();
+  console.log(indent(renderTable(['Key', 'Action', 'Kind'], rows)));
 }
 
 function printResult(providerName: ProviderName, result: PushResult): void {
   console.log('Push result:');
   console.log(`  ${formatProviderTarget(providerName, result)}`);
 
-  for (const entry of result.entries) {
-    const status = entry.status === 'success' ? pc.green('success') : pc.red('failure');
-    const error = entry.error === undefined ? '' : ` ${pc.dim(entry.error)}`;
-    console.log(`  ${entry.key} ${status}${error}`);
+  const rows = result.entries.map((entry) => [entry.key, colorStatus(entry.status)]);
+  const table = renderTable(['Key', 'Status'], rows);
+  if (table.length > 0) {
+    console.log();
+    console.log(indent(table));
   }
+
+  printErrors(result.entries);
+}
+
+function printErrors(entries: PushResult['entries']): void {
+  const rows = formatErrorRows(entries);
+  if (rows.length === 0) {
+    return;
+  }
+
+  console.log();
+  console.log('Errors:');
+  for (const { key, message } of rows) {
+    console.log(`  ${key}  ${pc.dim(message)}`);
+  }
+}
+
+// One displayable error row: the key padded to the common width and its
+// failure message collapsed to a single line. Successful entries are dropped.
+export interface ErrorRow {
+  readonly key: string;
+  readonly message: string;
+}
+
+// Builds the aligned, single-line error rows shown beneath a push result.
+// Provider errors (e.g. GitHub's multi-line HTTP 422) span several lines;
+// whitespace is collapsed so each failure stays on one row, and keys are
+// padded to the widest key so messages line up in a column.
+export function formatErrorRows(entries: readonly PushResultEntry[]): ErrorRow[] {
+  const failures = entries.filter((entry) => entry.error !== undefined);
+  if (failures.length === 0) {
+    return [];
+  }
+
+  const keyWidth = Math.max(...failures.map((failure) => failure.key.length));
+  return failures.map((failure) => ({
+    key: failure.key.padEnd(keyWidth),
+    message: (failure.error ?? '').replace(/\s+/g, ' ').trim(),
+  }));
+}
+
+type PushAction = PushPlan['entries'][number]['action'];
+type PushStatus = PushResultEntry['status'];
+
+function colorAction(action: PushAction): string {
+  return action === 'create' ? pc.green(action) : pc.yellow(action);
+}
+
+function colorStatus(status: PushStatus): string {
+  return status === 'success' ? pc.green(status) : pc.red(status);
+}
+
+function indent(block: string): string {
+  return block
+    .split('\n')
+    .map((line) => (line.length > 0 ? `  ${line}` : line))
+    .join('\n');
 }
 
 function printError(error: unknown): void {
