@@ -1,7 +1,7 @@
 {
   "packages": {
     "jd-solanki/.ai": {
-      "version": "v1.0.18",
+      "version": "v1.0.20",
       "linked": [
         "skills/grill-me",
         "skills/grill-with-docs",
@@ -16,7 +16,9 @@
         "skills/improve-codebase-architecture",
         "skills/clean-code",
         "skills/tdd",
-        "skills/krutrimbox-github-labels"
+        "skills/krutrimbox-github-labels",
+        "CLAUDE.md",
+        "AGENTS.md"
       ]
     }
   }
