@@ -12,6 +12,7 @@ import {
   type PushResult,
 } from '../lib/push/workflow.js';
 import type { PushValidationDiagnostic } from '../lib/push/validation.js';
+import { renderTable } from '../utils/table.js';
 
 interface PushOptions {
   readonly source: string;
@@ -88,20 +89,55 @@ function printPlan(plan: PushPlan): void {
     return;
   }
 
-  for (const entry of plan.entries) {
-    console.log(`  ${entry.key} ${pc.dim(entry.action)} ${entry.kind}`);
-  }
+  const rows = plan.entries.map((entry) => [entry.key, colorAction(entry.action), entry.kind]);
+  console.log();
+  console.log(indent(renderTable(['Key', 'Action', 'Kind'], rows)));
 }
 
 function printResult(result: PushResult): void {
   console.log('Push result:');
   console.log(`  ${formatTarget(result)}`);
 
-  for (const entry of result.entries) {
-    const status = entry.status === 'success' ? pc.green('success') : pc.red('failure');
-    const error = entry.error === undefined ? '' : ` ${pc.dim(entry.error)}`;
-    console.log(`  ${entry.key} ${status}${error}`);
+  const rows = result.entries.map((entry) => [entry.key, colorStatus(entry.status)]);
+  const table = renderTable(['Key', 'Status'], rows);
+  if (table.length > 0) {
+    console.log();
+    console.log(indent(table));
   }
+
+  printErrors(result.entries);
+}
+
+function printErrors(entries: PushResult['entries']): void {
+  const failures = entries.filter((entry) => entry.error !== undefined);
+  if (failures.length === 0) {
+    return;
+  }
+
+  const keyWidth = Math.max(...failures.map((failure) => failure.key.length));
+  console.log();
+  console.log('Errors:');
+  for (const failure of failures) {
+    // Provider errors (e.g. GitHub's multi-line HTTP 422) span several lines;
+    // collapse them so each failure stays on one aligned row beneath its key.
+    const message = (failure.error ?? '').replace(/\s+/g, ' ').trim();
+    console.log(`  ${failure.key.padEnd(keyWidth)}  ${pc.dim(message)}`);
+  }
+}
+
+function colorAction(action: PushPlan['entries'][number]['action']): string {
+  return action === 'create' ? pc.green(action) : pc.yellow(action);
+}
+
+function colorStatus(status: PushResult['entries'][number]['status']): string {
+  return status === 'success' ? pc.green(status) : pc.red(status);
+}
+
+function indent(block: string): string {
+  return block
+    .split('\n')
+    .map((line) => (line.length > 0 ? `  ${line}` : line))
+    .join('\n');
 }
 
 function formatTarget(targeted: Pick<PushPlan, 'target'>): string {
