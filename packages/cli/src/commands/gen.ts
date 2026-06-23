@@ -8,18 +8,21 @@ import type { TargetGenerationDiagnostic } from '../lib/target-generation';
 interface GenOptions {
   readonly source: string;
   readonly target: string;
+  readonly stage?: boolean;
 }
 
 export const genCommand = new Command('gen')
   .description('Generate an example env file with private values removed.')
   .option('-s, --source <path>', 'source env file', '.env')
   .option('-t, --target <path>', 'target env file', '.env.example')
+  .option('-S, --stage', 'stage the generated file with git add')
   .action(async (options: GenOptions) => {
     try {
       await runGenWorkflow({
         cwd: process.cwd(),
         source: options.source,
         target: options.target,
+        stage: Boolean(options.stage),
       });
       console.log(pc.green(`Generated ${options.target} from ${options.source}`));
     } catch (error) {

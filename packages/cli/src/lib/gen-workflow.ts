@@ -1,8 +1,10 @@
 import type { EnvDiagnostic } from '@envolix/env-parser';
+import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { promisify } from 'node:util';
 import { readSourceEnvFile } from './source-env-file';
 import {
   renderTargetEnvDocument,
@@ -10,10 +12,13 @@ import {
   type TargetGenerationDiagnostic,
 } from './target-generation';
 
+const execFileAsync = promisify(execFile);
+
 export interface GenWorkflowOptions {
   readonly cwd: string;
   readonly source: string;
   readonly target: string;
+  readonly stage?: boolean;
 }
 
 export class GenWorkflowError extends Error {
@@ -76,6 +81,28 @@ export async function runGenWorkflow(options: GenWorkflowOptions): Promise<void>
 
   const output = renderTargetEnvDocument(sourceEnvFile.document);
   await writeFileAtomically(targetPath, output);
+
+  if (options.stage) {
+    await stageGeneratedFile(options.cwd, targetPath);
+  }
+}
+
+async function stageGeneratedFile(cwd: string, filePath: string): Promise<void> {
+  try {
+    await execFileAsync('git', ['add', '--', filePath], { cwd });
+  } catch (error) {
+    const stderr = (error as { stderr?: string }).stderr ?? '';
+    if (
+      stderr.includes('not a git repository') ||
+      (error instanceof Error &&
+        'code' in error &&
+        (error as NodeJS.ErrnoException).code === 'ENOENT')
+    ) {
+      process.stderr.write(`Warning: --stage skipped: ${stderr.trim() || 'git not found'}\n`);
+      return;
+    }
+    throw new GenWorkflowError('Failed to stage generated file.', [stderr.trim() || String(error)]);
+  }
 }
 
 async function statPath(path: string, label: string) {
