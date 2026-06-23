@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vite-plus/test';
 
+import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import {
   GenWorkflowDiagnosticError,
   GenWorkflowError,
   runGenWorkflow,
 } from '../../src/lib/gen-workflow';
+
+const execFileAsync = promisify(execFile);
 
 async function withTempProject<T>(callback: (cwd: string) => Promise<T>): Promise<T> {
   const cwd = await mkdtemp(join(tmpdir(), 'envolix-gen-workflow-'));
@@ -116,6 +120,42 @@ describe('gen workflow', () => {
         message: 'Target parent path does not exist.',
       } satisfies Partial<GenWorkflowError>);
       await expect(readFile(join(cwd, 'existing', '.env.example'), 'utf8')).rejects.toThrow();
+    });
+  });
+
+  it('stages the generated file with git add when stage is true', async () => {
+    await withTempProject(async (cwd) => {
+      await execFileAsync('git', ['init'], { cwd });
+      await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd });
+      await execFileAsync('git', ['config', 'user.name', 'Test'], { cwd });
+      await writeFile(join(cwd, '.env'), 'TOKEN=secret\n');
+
+      await runGenWorkflow({ cwd, source: '.env', target: '.env.example', stage: true });
+
+      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd });
+      expect(stdout).toContain('A  .env.example');
+    });
+  });
+
+  it('emits a warning and does not throw when stage is true outside a git repository', async () => {
+    await withTempProject(async (cwd) => {
+      await writeFile(join(cwd, '.env'), 'TOKEN=secret\n');
+
+      const stderrChunks: string[] = [];
+      const originalWrite = process.stderr.write.bind(process.stderr);
+      process.stderr.write = (chunk: unknown, ...args: unknown[]) => {
+        stderrChunks.push(String(chunk));
+        return (originalWrite as (...a: unknown[]) => boolean)(chunk, ...args);
+      };
+
+      try {
+        await runGenWorkflow({ cwd, source: '.env', target: '.env.example', stage: true });
+      } finally {
+        process.stderr.write = originalWrite;
+      }
+
+      await expect(readFile(join(cwd, '.env.example'), 'utf8')).resolves.toBe('TOKEN=\n');
+      expect(stderrChunks.join('')).toContain('Warning: --stage skipped');
     });
   });
 });

@@ -137,6 +137,8 @@ describe('@envolix/cli', () => {
     expect(stdout).toContain('Usage: envolix gen [options]');
     expect(stdout).toContain('-s, --source <path>');
     expect(stdout).toContain('-t, --target <path>');
+    expect(stdout).toContain('-S, --stage');
+    expect(stdout).not.toContain('--git-add');
     expect(stdout).toContain('(default: ".env")');
     expect(stdout).toContain('(default: ".env.example")');
   });
@@ -533,6 +535,43 @@ describe('@envolix/cli', () => {
       await expect(readFile(targetPath, 'utf8')).resolves.toBe('TOKEN=\n');
       expect(after.ino).not.toBe(before.ino);
       expect(after.mode & 0o777).not.toBe(0o777);
+    });
+  });
+
+  it('stages the generated file with --stage in a git repository', async () => {
+    await withTempProject(async (cwd) => {
+      await execFileAsync('git', ['init'], { cwd });
+      await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd });
+      await execFileAsync('git', ['config', 'user.name', 'Test'], { cwd });
+      await writeFile(join(cwd, '.env'), 'TOKEN=secret\n');
+
+      const { stdout, stderr } = await runCli(['gen', '--stage'], cwd);
+
+      await expect(readFile(join(cwd, '.env.example'), 'utf8')).resolves.toBe('TOKEN=\n');
+      expect(stderr).toBe('');
+      expect(stdout).toContain('Generated .env.example from .env');
+      const { stdout: gitStatus } = await execFileAsync('git', ['status', '--porcelain'], { cwd });
+      expect(gitStatus).toContain('A  .env.example');
+    });
+  });
+
+  it('warns and does not fail when --stage is used outside a git repository', async () => {
+    await withTempProject(async (cwd) => {
+      await writeFile(join(cwd, '.env'), 'TOKEN=secret\n');
+
+      const { stdout, stderr } = await runCli(['gen', '--stage'], cwd);
+
+      await expect(readFile(join(cwd, '.env.example'), 'utf8')).resolves.toBe('TOKEN=\n');
+      expect(stdout).toContain('Generated .env.example from .env');
+      expect(stderr).toContain('Warning: --stage skipped');
+    });
+  });
+
+  it('rejects the removed --git-add alias', async () => {
+    await withTempProject(async (cwd) => {
+      const { stderr } = await runCliFailure(['gen', '--git-add'], cwd);
+
+      expect(stderr).toContain("unknown option '--git-add'");
     });
   });
 
