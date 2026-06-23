@@ -7,11 +7,8 @@ import type {
   PushPlanEntry,
   RemoteEntry,
 } from '../provider/index';
-import {
-  getEntryVarType,
-  validateEnvDocumentForPush,
-  type PushValidationDiagnostic,
-} from './validation';
+import { validateEnvDocumentForPush, type PushValidationDiagnostic } from './validation';
+import { getEntryVarType } from '../var-type';
 import { readSourceEnvFile } from '../source-env-file';
 
 export interface PlanPushOptions {

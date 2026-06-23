@@ -8,19 +8,25 @@ import type { TargetGenerationDiagnostic } from '../lib/target-generation';
 interface GenOptions {
   readonly source: string;
   readonly target: string;
+  readonly preserve: boolean;
 }
 
 export const genCommand = new Command('gen')
   .description('Generate an example env file with private values removed.')
   .option('-s, --source <path>', 'source env file', '.env')
   .option('-t, --target <path>', 'target env file', '.env.example')
+  .option('--no-preserve', 'blank every value instead of keeping existing #varType:plain values')
   .action(async (options: GenOptions) => {
     try {
-      await runGenWorkflow({
+      const { warnings } = await runGenWorkflow({
         cwd: process.cwd(),
         source: options.source,
         target: options.target,
+        preserve: options.preserve,
       });
+      for (const warning of warnings) {
+        console.warn(pc.yellow(`Warning: ${warning}`));
+      }
       console.log(pc.green(`Generated ${options.target} from ${options.source}`));
     } catch (error) {
       printError(error);

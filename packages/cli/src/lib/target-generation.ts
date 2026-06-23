@@ -71,15 +71,27 @@ export function assertEnvDocumentValidForTargetGeneration(document: EnvDocument)
   }
 }
 
-export function renderTargetEnvDocument(document: EnvDocument): string {
+export interface RenderTargetEnvOptions {
+  /**
+   * Values to splice after `KEY=` instead of blanking, keyed by env key. Built
+   * by value preservation from the existing target; absent keys are blanked.
+   */
+  readonly preservedValues?: ReadonlyMap<string, string>;
+}
+
+export function renderTargetEnvDocument(
+  document: EnvDocument,
+  options: RenderTargetEnvOptions = {},
+): string {
   assertEnvDocumentValidForTargetGeneration(document);
 
   if (document.nodes.length === 0) {
     return '';
   }
 
+  const preservedValues = options.preservedValues ?? new Map<string, string>();
   const lineEnding = document.lineEnding === 'crlf' ? '\r\n' : '\n';
-  const rendered = document.nodes.map((node) => renderNode(node)).join(lineEnding);
+  const rendered = document.nodes.map((node) => renderNode(node, preservedValues)).join(lineEnding);
 
   return document.finalNewline ? `${rendered}${lineEnding}` : rendered;
 }
@@ -101,14 +113,16 @@ function lineRangeForDocument(document: EnvDocument): EnvLineRange {
   };
 }
 
-function renderNode(node: EnvNode): string {
+function renderNode(node: EnvNode, preservedValues: ReadonlyMap<string, string>): string {
   switch (node.type) {
     case 'blank':
       return '';
     case 'comment':
       return node.raw;
-    case 'entry':
-      return `${node.exportPrefix ?? ''}${node.key}=${renderInlineComment(node)}`;
+    case 'entry': {
+      const value = preservedValues.get(node.key) ?? '';
+      return `${node.exportPrefix ?? ''}${node.key}=${value}${renderInlineComment(node)}`;
+    }
     case 'unknown':
       throw new TargetGenerationError([node.diagnostic]);
   }

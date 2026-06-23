@@ -37,6 +37,14 @@ envolix --help
 envolix gen --help
 ```
 
+By default `gen` preserves values you have hand-entered into the existing target. A key keeps its current target value only when its **source** entry is annotated `#varType:plain`; secret-annotated and unannotated keys are always blanked, so a regenerated target never re-emits a private value. Pass `--no-preserve` to blank every value and produce a fresh target:
+
+```bash
+envolix gen --no-preserve
+```
+
+For example, with `DEV_URL=http://internal # varType:plain` in the source and `DEV_URL=http://localhost:3000` already in `.env.example`, regenerating keeps `DEV_URL=http://localhost:3000 # varType:plain`. If a plain key is duplicated in the existing target, `gen` cannot tell which value you meant, so it blanks that key and prints a warning instead of failing.
+
 `envolix gen` resolves relative paths from the current working directory. It creates or overwrites the target file when the target parent directory already exists, rejects source and target paths that resolve to the same file, rejects directory paths, and writes through a temporary sibling file before renaming it into place. Missing sources and invalid source env documents fail before any target write occurs.
 
 Source:

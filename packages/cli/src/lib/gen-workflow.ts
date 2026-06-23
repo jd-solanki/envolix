@@ -1,7 +1,7 @@
-import type { EnvDiagnostic } from '@envolix/env-parser';
+import { parseEnvDocument, type EnvDiagnostic, type EnvDocument } from '@envolix/env-parser';
 import { randomUUID } from 'node:crypto';
-import { constants } from 'node:fs';
-import { rename, rm, stat, writeFile } from 'node:fs/promises';
+import { constants, type Stats } from 'node:fs';
+import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { readSourceEnvFile } from './source-env-file';
 import {
@@ -9,11 +9,19 @@ import {
   validateEnvDocumentForTargetGeneration,
   type TargetGenerationDiagnostic,
 } from './target-generation';
+import { resolveValuePreservation, type ValuePreservation } from './value-preservation';
 
 export interface GenWorkflowOptions {
   readonly cwd: string;
   readonly source: string;
   readonly target: string;
+  /** Reuse eligible existing target values instead of blanking them. Defaults to `true`. */
+  readonly preserve?: boolean;
+}
+
+export interface GenWorkflowResult {
+  /** Non-fatal messages about values that could not be preserved (e.g. ambiguous target keys). */
+  readonly warnings: readonly string[];
 }
 
 export class GenWorkflowError extends Error {
@@ -36,7 +44,7 @@ export class GenWorkflowDiagnosticError extends Error {
   }
 }
 
-export async function runGenWorkflow(options: GenWorkflowOptions): Promise<void> {
+export async function runGenWorkflow(options: GenWorkflowOptions): Promise<GenWorkflowResult> {
   const sourcePath = resolve(options.cwd, options.source);
   const targetPath = resolve(options.cwd, options.target);
 
@@ -74,8 +82,38 @@ export async function runGenWorkflow(options: GenWorkflowOptions): Promise<void>
     throw new GenWorkflowDiagnosticError(sourceEnvFile.path, diagnostics);
   }
 
-  const output = renderTargetEnvDocument(sourceEnvFile.document);
+  const preservation = await resolvePreservation(
+    options,
+    targetPath,
+    targetStat,
+    sourceEnvFile.document,
+  );
+
+  const output = renderTargetEnvDocument(sourceEnvFile.document, {
+    preservedValues: preservation.values,
+  });
   await writeFileAtomically(targetPath, output);
+
+  return { warnings: preservation.warnings };
+}
+
+const NO_PRESERVATION: ValuePreservation = Object.freeze({
+  values: new Map<string, string>(),
+  warnings: Object.freeze([]),
+});
+
+async function resolvePreservation(
+  options: GenWorkflowOptions,
+  targetPath: string,
+  targetStat: Stats | undefined,
+  sourceDocument: EnvDocument,
+): Promise<ValuePreservation> {
+  if (options.preserve === false || targetStat === undefined) {
+    return NO_PRESERVATION;
+  }
+
+  const existingTarget = parseEnvDocument(await readFile(targetPath, 'utf8'));
+  return resolveValuePreservation(sourceDocument, existingTarget);
 }
 
 async function statPath(path: string, label: string) {
