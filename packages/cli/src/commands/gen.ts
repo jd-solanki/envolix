@@ -9,7 +9,6 @@ interface GenOptions {
   readonly source: string;
   readonly target: string;
   readonly stage?: boolean;
-  readonly gitAdd?: boolean;
 }
 
 export const genCommand = new Command('gen')
@@ -17,14 +16,13 @@ export const genCommand = new Command('gen')
   .option('-s, --source <path>', 'source env file', '.env')
   .option('-t, --target <path>', 'target env file', '.env.example')
   .option('-S, --stage', 'stage the generated file with git add')
-  .option('--git-add', 'stage the generated file with git add (alias for --stage)')
   .action(async (options: GenOptions) => {
     try {
       await runGenWorkflow({
         cwd: process.cwd(),
         source: options.source,
         target: options.target,
-        stage: Boolean(options.stage || options.gitAdd),
+        stage: Boolean(options.stage),
       });
       console.log(pc.green(`Generated ${options.target} from ${options.source}`));
     } catch (error) {

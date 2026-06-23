@@ -83,25 +83,25 @@ export async function runGenWorkflow(options: GenWorkflowOptions): Promise<void>
   await writeFileAtomically(targetPath, output);
 
   if (options.stage) {
-    await stageGeneratedFile(targetPath);
+    await stageGeneratedFile(options.cwd, targetPath);
   }
 }
 
-async function stageGeneratedFile(filePath: string): Promise<void> {
+async function stageGeneratedFile(cwd: string, filePath: string): Promise<void> {
   try {
-    await execFileAsync('git', ['add', '--', filePath]);
+    await execFileAsync('git', ['add', '--', filePath], { cwd });
   } catch (error) {
     const stderr = (error as { stderr?: string }).stderr ?? '';
     if (
       stderr.includes('not a git repository') ||
-      (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT')
+      (error instanceof Error &&
+        'code' in error &&
+        (error as NodeJS.ErrnoException).code === 'ENOENT')
     ) {
       process.stderr.write(`Warning: --stage skipped: ${stderr.trim() || 'git not found'}\n`);
       return;
     }
-    throw new GenWorkflowError('Failed to stage generated file.', [
-      stderr.trim() || String(error),
-    ]);
+    throw new GenWorkflowError('Failed to stage generated file.', [stderr.trim() || String(error)]);
   }
 }
 
