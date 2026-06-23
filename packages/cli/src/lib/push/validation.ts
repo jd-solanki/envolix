@@ -1,5 +1,5 @@
-import type { EnvDiagnostic, EnvDocument, EnvEntry, EnvLineRange } from '@envolix/env-parser';
-import type { RemoteEntryKind } from '../provider/index';
+import type { EnvDiagnostic, EnvDocument, EnvLineRange } from '@envolix/env-parser';
+import { getEntryVarType } from '../var-type';
 
 export type PushValidationDiagnosticCode = 'DuplicateKey' | 'MissingVarTypeAnnotation';
 
@@ -51,22 +51,6 @@ export function validateEnvDocumentForPush(
   }
 
   return Object.freeze(diagnostics);
-}
-
-export function getEntryVarType(entry: EnvEntry): RemoteEntryKind | undefined {
-  const varTypeSegment = entry.inlineComment?.segments.find((segment) =>
-    segment.text.startsWith('varType:'),
-  );
-
-  if (varTypeSegment?.text === 'varType:secret') {
-    return 'secret';
-  }
-
-  if (varTypeSegment?.text === 'varType:plain') {
-    return 'variable';
-  }
-
-  return undefined;
 }
 
 function createPushDiagnostic(diagnostic: PushValidationDiagnostic): PushValidationDiagnostic {

@@ -172,6 +172,28 @@ describe('target generation', () => {
     expect(renderTargetEnvDocument(document)).toBe('A=\r\nB= # guide\r\n');
   });
 
+  it('splices preserved values while keeping all structure and annotations from the source', () => {
+    const document = parseEnvDocument(
+      [
+        'DEV_URL=internal # varType:plain',
+        'API_KEY=secret # varType:secret',
+        'UNTOUCHED=value',
+      ].join('\n'),
+    );
+
+    const rendered = renderTargetEnvDocument(document, {
+      preservedValues: new Map([['DEV_URL', 'http://localhost:3000']]),
+    });
+
+    expect(rendered).toBe(
+      [
+        'DEV_URL=http://localhost:3000 # varType:plain',
+        'API_KEY= # varType:secret',
+        'UNTOUCHED=',
+      ].join('\n'),
+    );
+  });
+
   it('rejects invalid documents during rendering instead of exposing an unsafe renderer', () => {
     const document = parseEnvDocument(['A=one', 'A=two'].join('\n'));
 

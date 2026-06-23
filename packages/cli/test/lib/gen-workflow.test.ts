@@ -63,6 +63,52 @@ describe('gen workflow', () => {
     });
   });
 
+  it('preserves a plain-annotated value already present in the existing target by default', async () => {
+    await withTempProject(async (cwd) => {
+      await writeFile(
+        join(cwd, '.env'),
+        ['DEV_URL=internal # varType:plain', 'API_KEY=secret # varType:secret'].join('\n'),
+      );
+      await writeFile(join(cwd, '.env.example'), 'DEV_URL=http://localhost:3000\n');
+
+      const result = await runGenWorkflow({ cwd, source: '.env', target: '.env.example' });
+
+      expect(result.warnings).toEqual([]);
+      await expect(readFile(join(cwd, '.env.example'), 'utf8')).resolves.toBe(
+        ['DEV_URL=http://localhost:3000 # varType:plain', 'API_KEY= # varType:secret'].join('\n'),
+      );
+    });
+  });
+
+  it('blanks every value when preservation is disabled', async () => {
+    await withTempProject(async (cwd) => {
+      await writeFile(join(cwd, '.env'), 'DEV_URL=internal # varType:plain\n');
+      await writeFile(join(cwd, '.env.example'), 'DEV_URL=http://localhost:3000\n');
+
+      await runGenWorkflow({ cwd, source: '.env', target: '.env.example', preserve: false });
+
+      await expect(readFile(join(cwd, '.env.example'), 'utf8')).resolves.toBe(
+        'DEV_URL= # varType:plain\n',
+      );
+    });
+  });
+
+  it('warns without failing when a plain key is duplicated in the existing target', async () => {
+    await withTempProject(async (cwd) => {
+      await writeFile(join(cwd, '.env'), 'API_URL=internal # varType:plain\n');
+      await writeFile(join(cwd, '.env.example'), ['API_URL=one', 'API_URL=two'].join('\n'));
+
+      const result = await runGenWorkflow({ cwd, source: '.env', target: '.env.example' });
+
+      expect(result.warnings).toEqual([
+        'Skipped preserving "API_URL": it appears more than once in the existing target env file.',
+      ]);
+      await expect(readFile(join(cwd, '.env.example'), 'utf8')).resolves.toBe(
+        'API_URL= # varType:plain\n',
+      );
+    });
+  });
+
   it('rejects a missing target parent before writing', async () => {
     await withTempProject(async (cwd) => {
       await writeFile(join(cwd, '.env'), 'TOKEN=value\n');

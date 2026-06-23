@@ -21,8 +21,16 @@ The CLI-owned workflow that consumes an env document, verifies whether a target 
 _Avoid_: Parser rendering, example rendering
 
 **Generated value**:
-The blank value written for a key in the target env file, replacing the private source value. Target generation removes only env values while preserving comments and document structure.
+The blank value written for a key in the target env file when its value is not preserved, replacing the private source value. Target generation removes only env values while preserving comments and document structure. See **Preserved value** for the exception.
 _Avoid_: Placeholder, masked value
+
+**Preserved value**:
+The value carried over verbatim from the existing target env file into a freshly generated target, used in place of a generated (blank) value. Only entries whose source env entry is annotated `varType:plain` are eligible; secret-annotated and unannotated entries always receive a generated value.
+_Avoid_: Kept value, Retained value, Carried-over value
+
+**Value preservation**:
+The default target-generation behavior of reusing eligible existing target values instead of blanking them. Disabled with `--no-preserve`, which forces every entry to a generated value.
+_Avoid_: Merge, Carry-over, Sticky values
 
 **Env document**:
 An ordered representation of an env file as authored, including entries, comments, blank lines, and lines that cannot be interpreted as entries.
