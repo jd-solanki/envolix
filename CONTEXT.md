@@ -32,6 +32,14 @@ _Avoid_: Kept value, Retained value, Carried-over value
 The default target-generation behavior of reusing eligible existing target values instead of blanking them. Disabled with `--no-preserve`, which forces every entry to a generated value.
 _Avoid_: Merge, Carry-over, Sticky values
 
+**Check**:
+The CLI-owned workflow that compares a source env file against an existing target env file and reports key drift, modifying neither file. It is the validating counterpart to target generation, which writes.
+_Avoid_: Validate, Verify, Lint
+
+**Key drift**:
+The condition where a target env file's key set diverges from its source: a source key missing from the target, or, under `--strict`, a target key missing from the source. Distinct from provider-side kind drift (a remote entry stored under the wrong secret-or-variable kind), which the push workflow handles.
+_Avoid_: Out of sync, Missing variable, Mismatch
+
 **Env document**:
 An ordered representation of an env file as authored, including entries, comments, blank lines, and lines that cannot be interpreted as entries.
 _Avoid_: Env object, parsed env map

@@ -1,7 +1,7 @@
-import type { EnvDiagnostic } from '@envolix/env-parser';
 import { confirm } from '@inquirer/prompts';
 import { Command, InvalidArgumentError } from 'commander';
 import pc from 'picocolors';
+import { formatDiagnostic } from '../lib/diagnostic-format';
 import {
   createProvider,
   formatProviderTarget,
@@ -18,7 +18,6 @@ import {
   type PushResultEntry,
 } from '../lib/push/workflow';
 import { SourceEnvFileError } from '../lib/source-env-file';
-import type { PushValidationDiagnostic } from '../lib/push/validation';
 import { renderTable } from '../utils/table';
 
 interface PushOptions {
@@ -192,21 +191,4 @@ function printError(error: unknown): void {
 
   const message = error instanceof Error ? error.message : String(error);
   console.error(pc.red('Error: ') + message);
-}
-
-function formatDiagnostic(
-  sourcePath: string,
-  diagnostic: EnvDiagnostic | PushValidationDiagnostic,
-): string {
-  return [
-    pc.yellow(diagnostic.code),
-    pc.dim(`${sourcePath}:${formatLineRange(diagnostic.lineRange)}`),
-    diagnostic.message,
-  ].join(' ');
-}
-
-function formatLineRange(lineRange: EnvDiagnostic['lineRange']): string {
-  return lineRange.start === lineRange.end
-    ? String(lineRange.start)
-    : `${lineRange.start}-${lineRange.end}`;
 }

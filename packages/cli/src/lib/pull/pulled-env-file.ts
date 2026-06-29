@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { access, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
+import { isNodeError } from '../fs';
 import type { RemoteEntry } from '../provider/index';
 
 const execFileAsync = promisify(execFile);
@@ -188,8 +189,4 @@ function matchesGitignorePattern(fileName: string, pattern: string): boolean {
 
   const escaped = normalizedPattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
   return new RegExp(`^${escaped}$`).test(fileName);
-}
-
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && 'code' in error;
 }

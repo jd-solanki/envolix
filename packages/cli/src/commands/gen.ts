@@ -1,9 +1,8 @@
-import type { EnvDiagnostic } from '@envolix/env-parser';
 import { Command } from 'commander';
 import pc from 'picocolors';
+import { formatDiagnostic } from '../lib/diagnostic-format';
 import { GenWorkflowDiagnosticError, GenWorkflowError, runGenWorkflow } from '../lib/gen-workflow';
 import { SourceEnvFileError } from '../lib/source-env-file';
-import type { TargetGenerationDiagnostic } from '../lib/target-generation';
 
 interface GenOptions {
   readonly source: string;
@@ -64,21 +63,4 @@ function printError(error: unknown): void {
 
   const message = error instanceof Error ? error.message : String(error);
   console.error(pc.red('Error: ') + message);
-}
-
-function formatDiagnostic(
-  sourcePath: string,
-  diagnostic: EnvDiagnostic | TargetGenerationDiagnostic,
-): string {
-  return [
-    pc.yellow(diagnostic.code),
-    pc.dim(`${sourcePath}:${formatLineRange(diagnostic.lineRange)}`),
-    diagnostic.message,
-  ].join(' ');
-}
-
-function formatLineRange(lineRange: EnvDiagnostic['lineRange']): string {
-  return lineRange.start === lineRange.end
-    ? String(lineRange.start)
-    : `${lineRange.start}-${lineRange.end}`;
 }

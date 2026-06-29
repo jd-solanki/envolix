@@ -47,6 +47,22 @@ For example, with `DEV_URL=http://internal # varType:plain` in the source and `D
 
 `envolix gen` resolves relative paths from the current working directory. It creates or overwrites the target file when the target parent directory already exists, rejects source and target paths that resolve to the same file, rejects directory paths, and writes through a temporary sibling file before renaming it into place. Missing sources and invalid source env documents fail before any target write occurs.
 
+### Checking for drift
+
+`envolix check` verifies that an existing target file still contains every key defined in its source, without writing anything. It is meant for a pre-commit hook guarding gitignored targets that `gen` does not manage, such as `.env.production` or `.env.staging`:
+
+```bash
+envolix check --target .env.production
+```
+
+Like `gen`, it defaults to `.env` → `.env.example`. The check passes (exit code `0`) when the target covers every source key, and fails (exit code `1`) listing the keys the target is missing. Keys that exist only in the target are ignored by default — production environments legitimately add their own — unless you pass `--strict`, which also reports them:
+
+```bash
+envolix check --target .env.production --strict
+```
+
+`check` compares keys only; it never reads or compares values, so blank target values never count as drift. The source must be valid under the same rules as `gen` (no duplicate keys, no mixed line endings). A missing target file is reported as a distinct error rather than as every key being absent.
+
 Source:
 
 ```dotenv
