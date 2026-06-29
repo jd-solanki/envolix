@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { isNodeError } from '../fs';
 import type { ProviderTarget, RemoteVariable } from './index';
 
 export interface GhRunResult {
@@ -213,8 +214,4 @@ function getStderr(error: unknown): string {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && 'code' in error;
 }

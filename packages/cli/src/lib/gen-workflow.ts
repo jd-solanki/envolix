@@ -5,6 +5,7 @@ import { constants, type Stats } from 'node:fs';
 import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { promisify } from 'node:util';
+import { isNodeError, statOptional } from './fs';
 import { readSourceEnvFile } from './source-env-file';
 import {
   renderTargetEnvDocument,
@@ -155,18 +156,6 @@ async function statPath(path: string, label: string) {
   }
 }
 
-async function statOptional(path: string) {
-  try {
-    return await stat(path);
-  } catch (error) {
-    if (isNodeError(error) && error.code === 'ENOENT') {
-      return undefined;
-    }
-
-    throw error;
-  }
-}
-
 async function writeFileAtomically(targetPath: string, content: string): Promise<void> {
   const temporaryPath = resolve(dirname(targetPath), `.${randomUUID()}.tmp`);
 
@@ -184,8 +173,4 @@ async function writeFileAtomically(targetPath: string, content: string): Promise
 
 function capitalize(value: string): string {
   return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
-}
-
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && 'code' in error;
 }
