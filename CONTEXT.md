@@ -97,7 +97,7 @@ A comment that appears after an env entry value on the same logical line.
 _Avoid_: Trailing comment, value note
 
 **Comment annotation**:
-A structured convention embedded inside a comment segment for downstream automation, such as identifying whether an env value is secret or plain. Comment annotations are preserved by MVP parsing but interpreted in a later version.
+A structured convention embedded inside a comment segment for downstream automation, such as identifying whether an env value is secret or plain. The parser preserves comment annotations verbatim without interpreting them; workflows that depend on them, such as push and target generation, interpret them.
 _Avoid_: Tag, magic comment
 
 **CLI package**:
